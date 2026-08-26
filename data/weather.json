@@ -1,0 +1,9 @@
+{
+  "regions": {
+    "default": {"temperature_c": 31.0, "humidity_pct": 62.0},
+    "Delhi": {"temperature_c": 31.0, "humidity_pct": 62.0},
+    "Haryana": {"temperature_c": 32.0, "humidity_pct": 58.0},
+    "Uttar Pradesh": {"temperature_c": 33.0, "humidity_pct": 60.0}
+  },
+  "source": "seeded_demo"
+}

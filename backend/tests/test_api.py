@@ -1,0 +1,115 @@
+"""API contract tests including the full end-to-end golden journey."""
+
+
+def test_health(client):
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_crops_listed(client):
+    crops = client.get("/api/crops").json()
+    names = {c["name"] for c in crops}
+    assert {"Tomato", "Potato", "Onion", "Wheat", "Rice"} <= names
+
+
+def test_trucks_and_mandis(client):
+    trucks = client.get("/api/trucks").json()
+    assert len(trucks) >= 10
+    t104 = next(t for t in trucks if t["id"] == "T104")
+    assert t104["capacity_kg"] == 2500
+    assert any(r["return_available"] for r in t104["routes"])
+
+    mandis = client.get("/api/mandis").json()
+    assert len(mandis) >= 6
+    prices = client.get("/api/mandis/1/prices").json()
+    tomato = next(p for p in prices if p["crop"] == "Tomato")
+    assert tomato["price_per_kg"] == 48.0
+
+
+def test_full_farmer_journey(client):
+    """Create listing → recommend → join pool → notifications."""
+    # 1. Farmer input.
+    created = client.post(
+        "/api/listings",
+        json={
+            "crop": "Tomato",
+            "quantity_kg": 800,
+            "latitude": 28.683,
+            "longitude": 77.06,
+        },
+    )
+    assert created.status_code == 201, created.text
+    listing_id = created.json()["id"]
+
+    # 2. Recommendation.
+    rec = client.post("/api/recommendations", json={"listing_id": listing_id})
+    assert rec.status_code == 200, rec.text
+    body = rec.json()
+    assert body["recommended"]["pool"]["farmer_count"] >= 1
+    assert body["net_gain"] > 0
+
+    # 3. Join the load.
+    joined = client.post(
+        f"/api/pools/{body['pool_id']}/join", json={"listing_id": listing_id}
+    )
+    assert joined.status_code == 200
+    assert joined.json()["status"] == "JOINED"
+
+    # 4. Notification created.
+    notes = client.get("/api/notifications/1").json()
+    assert any(n["type"] == "POOL_CONFIRMED" for n in notes)
+
+
+def test_listing_validation(client):
+    bad_crop = client.post(
+        "/api/listings",
+        json={"crop": "Pizza", "quantity_kg": 10, "latitude": 28.0, "longitude": 77.0},
+    )
+    assert bad_crop.status_code == 422
+
+    bad_qty = client.post(
+        "/api/listings",
+        json={"crop": "Tomato", "quantity_kg": -5, "latitude": 28.0, "longitude": 77.0},
+    )
+    assert bad_qty.status_code == 422
+
+
+def test_recommendation_unknown_listing(client):
+    missing = client.post("/api/recommendations", json={"listing_id": 987654})
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "NOT_FOUND"
+
+
+def test_matching_candidates_endpoint(client):
+    result = client.post("/api/matching/candidates", json={"listing_id": 1})
+    assert result.status_code == 200
+    payload = result.json()
+    compatible_names = {f["name"] for f in payload["compatible_farmers"]}
+    assert "Suresh Yadav" in compatible_names
+
+
+def test_chat_conversation_flow(client):
+    session_id = "pytest-chat-01"
+
+    r1 = client.post("/api/chat", json={
+        "session_id": session_id,
+        "text": "I have 800 kg tomatoes ready today from Nangloi",
+    })
+    assert r1.status_code == 200
+    reply = r1.json()["reply"]
+    # Either a recommendation (all fields parsed) or one focused question.
+    assert reply["text"]
+
+    r2 = client.post("/api/chat", json={"session_id": session_id, "text": "start over"})
+    assert "Namaste" in r2.json()["reply"]["text"]
+
+    r3 = client.post("/api/chat", json={"session_id": session_id, "text": "500 kg aalu Kharkhoda kal"})
+    text3 = r3.json()["reply"]["text"]
+    assert ("Potato" in text3) or ("kilograms" in text3) or ("Best option" in text3)
+
+
+def test_demo_reset(client):
+    response = client.post("/api/demo/reset")
+    assert response.status_code == 200
+    assert response.json()["status"] == "reseeded"

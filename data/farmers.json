@@ -1,0 +1,30 @@
+{
+  "farmers": [
+    {"id": 1, "name": "Ramesh Kumar", "phone": "+91-90000-00001", "village": "Nangloi", "district": "West Delhi", "state": "Delhi", "latitude": 28.683, "longitude": 77.06},
+    {"id": 2, "name": "Suresh Yadav", "phone": "+91-90000-00002", "village": "Mundka", "district": "West Delhi", "state": "Delhi", "latitude": 28.6808, "longitude": 76.9791},
+    {"id": 3, "name": "Amit Chauhan", "phone": "+91-90000-00003", "village": "Bawana", "district": "North West Delhi", "state": "Delhi", "latitude": 28.7985, "longitude": 77.0374},
+    {"id": 4, "name": "Vijay Singh", "phone": "+91-90000-00004", "village": "Kharkhoda", "district": "Sonipat", "state": "Haryana", "latitude": 28.8825, "longitude": 76.9063},
+    {"id": 5, "name": "Sanjay Ahir", "phone": "+91-90000-00005", "village": "Najafgarh", "district": "South West Delhi", "state": "Delhi", "latitude": 28.5702, "longitude": 76.9337},
+    {"id": 6, "name": "Kiran Devi", "phone": "+91-90000-00006", "village": "Alipur", "district": "North Delhi", "state": "Delhi", "latitude": 28.7992, "longitude": 77.1327},
+    {"id": 7, "name": "Devender Malik", "phone": "+91-90000-00007", "village": "Kithoor", "district": "Meerut", "state": "Uttar Pradesh", "latitude": 28.9215, "longitude": 77.6725},
+    {"id": 8, "name": "Farhan Qureshi", "phone": "+91-90000-00008", "village": "Swaroop Nagar", "district": "North Delhi", "state": "Delhi", "latitude": 28.7412, "longitude": 77.1815},
+    {"id": 9, "name": "Geeta Rani", "phone": "+91-90000-00009", "village": "Israna", "district": "Panipat", "state": "Haryana", "latitude": 29.2885, "longitude": 76.9642},
+    {"id": 10, "name": "Pooja Sharma", "phone": "+91-90000-00010", "village": "Madlauda", "district": "Panipat", "state": "Haryana", "latitude": 29.2462, "longitude": 76.9182},
+    {"id": 11, "name": "Manoj Kashyap", "phone": "+91-90000-00011", "village": "Dujana", "district": "Baghpat", "state": "Uttar Pradesh", "latitude": 28.9855, "longitude": 77.2137},
+    {"id": 12, "name": "Rahul Tokas", "phone": "+91-90000-00012", "village": "Jharoda Kalan", "district": "South West Delhi", "state": "Delhi", "latitude": 28.5632, "longitude": 76.9982}
+  ],
+  "listings": [
+    {"farmer_id": 1, "crop": "Tomato", "quantity_kg": 800, "harvest_offset_hours_ago": 8, "status": "AVAILABLE"},
+    {"farmer_id": 2, "crop": "Tomato", "quantity_kg": 700, "harvest_offset_hours_ago": 8, "status": "AVAILABLE"},
+    {"farmer_id": 3, "crop": "Tomato", "quantity_kg": 600, "harvest_offset_hours_ago": 9.5, "status": "AVAILABLE"},
+    {"farmer_id": 4, "crop": "Potato", "quantity_kg": 2000, "harvest_offset_hours_ago": 30, "status": "AVAILABLE"},
+    {"farmer_id": 5, "crop": "Onion", "quantity_kg": 900, "harvest_offset_hours_ago": 20, "status": "AVAILABLE"},
+    {"farmer_id": 6, "crop": "Cauliflower", "quantity_kg": 400, "harvest_offset_hours_ago": 10, "status": "AVAILABLE"},
+    {"farmer_id": 7, "crop": "Mango", "quantity_kg": 1200, "harvest_offset_hours_ago": 14, "status": "AVAILABLE"},
+    {"farmer_id": 8, "crop": "Banana", "quantity_kg": 800, "harvest_offset_hours_ago": 26, "status": "AVAILABLE"},
+    {"farmer_id": 9, "crop": "Wheat", "quantity_kg": 3000, "harvest_offset_hours_ago": 48, "status": "AVAILABLE"},
+    {"farmer_id": 10, "crop": "Rice", "quantity_kg": 2600, "harvest_offset_hours_ago": 60, "status": "AVAILABLE"},
+    {"farmer_id": 11, "crop": "Cabbage", "quantity_kg": 500, "harvest_offset_hours_ago": 36, "status": "POOLED"},
+    {"farmer_id": 12, "crop": "Tomato", "quantity_kg": 450, "harvest_offset_hours_ago": 40, "status": "SOLD"}
+  ]
+}

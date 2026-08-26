@@ -1,0 +1,226 @@
+﻿{
+    "trucks":  [
+                   {
+                       "id":  "T104",
+                       "registration_number":  "HR-26-T-1044",
+                       "capacity_kg":  2500,
+                       "current_latitude":  28.6855,
+                       "current_longitude":  77.0555,
+                       "available_capacity_kg":  2500,
+                       "status":  "AVAILABLE"
+                   },
+                   {
+                       "id":  "T103",
+                       "registration_number":  "DL-01-GA-2310",
+                       "capacity_kg":  1800,
+                       "current_latitude":  28.7021,
+                       "current_longitude":  77.1205,
+                       "available_capacity_kg":  1800,
+                       "status":  "AVAILABLE"
+                   },
+                   {
+                       "id":  "T201",
+                       "registration_number":  "UP-15-K-8821",
+                       "capacity_kg":  2200,
+                       "current_latitude":  28.7195,
+                       "current_longitude":  77.1706,
+                       "available_capacity_kg":  2200,
+                       "status":  "AVAILABLE"
+                   },
+                   {
+                       "id":  "T203",
+                       "registration_number":  "UP-17-BV-4510",
+                       "capacity_kg":  3500,
+                       "current_latitude":  28.7402,
+                       "current_longitude":  77.1642,
+                       "available_capacity_kg":  3500,
+                       "status":  "AVAILABLE"
+                   },
+                   {
+                       "id":  "T101",
+                       "registration_number":  "HR-20-C-1180",
+                       "capacity_kg":  1500,
+                       "current_latitude":  28.6641,
+                       "current_longitude":  77.0421,
+                       "available_capacity_kg":  1500,
+                       "status":  "AVAILABLE"
+                   },
+                   {
+                       "id":  "T105",
+                       "registration_number":  "HR-99-E-7741",
+                       "capacity_kg":  3000,
+                       "current_latitude":  28.7519,
+                       "current_longitude":  77.0985,
+                       "available_capacity_kg":  3000,
+                       "status":  "AVAILABLE"
+                   },
+                   {
+                       "id":  "T102",
+                       "registration_number":  "DL-3C-A-5512",
+                       "capacity_kg":  5000,
+                       "current_latitude":  28.61,
+                       "current_longitude":  77.25,
+                       "available_capacity_kg":  0,
+                       "status":  "FULL"
+                   },
+                   {
+                       "id":  "T202",
+                       "registration_number":  "HR-46-D-9021",
+                       "capacity_kg":  1200,
+                       "current_latitude":  28.83,
+                       "current_longitude":  77.31,
+                       "available_capacity_kg":  0,
+                       "status":  "UNAVAILABLE"
+                   },
+                   {
+                       "id":  "T301",
+                       "registration_number":  "HR-58-L-3345",
+                       "capacity_kg":  2800,
+                       "current_latitude":  29.16,
+                       "current_longitude":  76.72,
+                       "available_capacity_kg":  1600,
+                       "status":  "AVAILABLE"
+                   },
+                   {
+                       "id":  "T302",
+                       "registration_number":  "UP-19-Q-6612",
+                       "capacity_kg":  2000,
+                       "current_latitude":  29.05,
+                       "current_longitude":  77.35,
+                       "available_capacity_kg":  2000,
+                       "status":  "AVAILABLE"
+                   },
+                   {
+                       "id":  "T303",
+                       "registration_number":  "DL-9Y-H-7781",
+                       "capacity_kg":  4200,
+                       "current_latitude":  28.52,
+                       "current_longitude":  77.18,
+                       "available_capacity_kg":  2600,
+                       "status":  "AVAILABLE"
+                   },
+                   {
+                       "id":  "T304",
+                       "registration_number":  "HR-71-P-2290",
+                       "capacity_kg":  1600,
+                       "current_latitude":  28.93,
+                       "current_longitude":  76.58,
+                       "available_capacity_kg":  800,
+                       "status":  "IN_TRANSIT"
+                   }
+               ],
+    "routes":  [
+                   {
+                       "id":  "RT-104-A",
+                       "truck_id":  "T104",
+                       "origin_name":  "Azadpur Mandi, Delhi (returning load)",
+                       "origin_latitude":  28.7056,
+                       "origin_longitude":  77.17,
+                       "destination_mandi_id":  2,
+                       "travel_hours":  2.5,
+                       "return_available":  true,
+                       "return_destination_region":  "Baghpat-Baraut corridor",
+                       "distance_km":  72,
+                       "estimated_cost":  1796,
+                       "departure_offset_hours":  4
+                   },
+                   {
+                       "id":  "RT-103-A",
+                       "truck_id":  "T103",
+                       "origin_name":  "Kashmere Gate ISBT yard, Delhi",
+                       "origin_latitude":  28.6675,
+                       "origin_longitude":  77.2285,
+                       "destination_mandi_id":  3,
+                       "travel_hours":  2.5,
+                       "return_available":  false,
+                       "return_destination_region":  "",
+                       "distance_km":  68,
+                       "estimated_cost":  1724,
+                       "departure_offset_hours":  6.5
+                   },
+                   {
+                       "id":  "RT-201-A",
+                       "truck_id":  "T201",
+                       "origin_name":  "Ghazipur yard, Delhi",
+                       "origin_latitude":  28.6259,
+                       "origin_longitude":  77.3266,
+                       "destination_mandi_id":  6,
+                       "travel_hours":  2.0,
+                       "return_available":  false,
+                       "return_destination_region":  "",
+                       "distance_km":  66,
+                       "estimated_cost":  1688,
+                       "departure_offset_hours":  5
+                   },
+                   {
+                       "id":  "RT-203-A",
+                       "truck_id":  "T203",
+                       "origin_name":  "Azadpur Mandi, Delhi (returning load)",
+                       "origin_latitude":  28.7056,
+                       "origin_longitude":  77.17,
+                       "destination_mandi_id":  5,
+                       "travel_hours":  3.0,
+                       "return_available":  true,
+                       "return_destination_region":  "Meerut rural corridor",
+                       "distance_km":  78,
+                       "estimated_cost":  1904,
+                       "departure_offset_hours":  18
+                   },
+                   {
+                       "id":  "RT-101-A",
+                       "truck_id":  "T101",
+                       "origin_name":  "Dwarka depot, Delhi",
+                       "origin_latitude":  28.5921,
+                       "origin_longitude":  77.0465,
+                       "destination_mandi_id":  3,
+                       "travel_hours":  2.5,
+                       "return_available":  false,
+                       "return_destination_region":  "",
+                       "distance_km":  74,
+                       "estimated_cost":  1832,
+                       "departure_offset_hours":  20
+                   },
+                   {
+                       "id":  "RT-105-A",
+                       "truck_id":  "T105",
+                       "origin_name":  "Azadpur Mandi, Delhi",
+                       "origin_latitude":  28.7056,
+                       "origin_longitude":  77.17,
+                       "destination_mandi_id":  4,
+                       "travel_hours":  3.0,
+                       "return_available":  false,
+                       "return_destination_region":  "",
+                       "distance_km":  92,
+                       "estimated_cost":  2156,
+                       "departure_offset_hours":  22
+                   },
+                   {
+                       "id":  "RT-301-A",
+                       "truck_id":  "T301",
+                       "origin_name":  "Rohtak Mandi, Haryana (empty return)",
+                       "origin_latitude":  28.895,
+                       "origin_longitude":  76.609,
+                       "destination_mandi_id":  1,
+                       "travel_hours":  2.5,
+                       "return_available":  false,
+                       "return_destination_region":  "",
+                       "distance_km":  70,
+                       "estimated_cost":  1760,
+                       "departure_offset_hours":  7
+                   },
+                   {
+                       "id":  "RT-302-A",
+                       "truck_id":  "T302",
+                       "origin_name":  "Baraut Mandi, UP (empty return)",
+                       "origin_latitude":  29.103,
+                       "origin_longitude":  77.264,
+                       "destination_mandi_id":  1,
+                       "travel_hours":  2.5,
+                       "return_available":  false,
+                       "return_destination_region":  "",
+                       "distance_km":  74,
+                       "estimated_cost":  1832,
+                       "departure_offset_hours":  19
+                   }
+               ]
+}

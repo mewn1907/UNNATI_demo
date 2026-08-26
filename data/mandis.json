@@ -1,0 +1,22 @@
+{
+  "mandis": [
+    {"id": 1, "name": "Azadpur Mandi", "city": "Delhi", "district": "North Delhi", "state": "Delhi", "latitude": 28.7056, "longitude": 77.17},
+    {"id": 2, "name": "Baraut Mandi", "city": "Baraut", "district": "Baghpat", "state": "Uttar Pradesh", "latitude": 29.103, "longitude": 77.264},
+    {"id": 3, "name": "Rohtak Mandi", "city": "Rohtak", "district": "Rohtak", "state": "Haryana", "latitude": 28.895, "longitude": 76.609},
+    {"id": 4, "name": "Panipat Mandi", "city": "Panipat", "district": "Panipat", "state": "Haryana", "latitude": 29.39, "longitude": 76.964},
+    {"id": 5, "name": "Meerut Mandi", "city": "Meerut", "district": "Meerut", "state": "Uttar Pradesh", "latitude": 28.984, "longitude": 77.706},
+    {"id": 6, "name": "Hapur Mandi", "city": "Hapur", "district": "Hapur", "state": "Uttar Pradesh", "latitude": 28.73, "longitude": 77.776}
+  ],
+  "prices_per_kg": {
+    "Tomato":   {"Azadpur Mandi": 48.0, "Baraut Mandi": 63.0, "Rohtak Mandi": 58.0, "Panipat Mandi": 56.0, "Meerut Mandi": 54.0, "Hapur Mandi": 52.0},
+    "Potato":   {"Azadpur Mandi": 22.0, "Baraut Mandi": 20.0, "Rohtak Mandi": 19.0, "Panipat Mandi": 21.0, "Meerut Mandi": 18.0, "Hapur Mandi": 19.0},
+    "Onion":    {"Azadpur Mandi": 34.0, "Baraut Mandi": 31.0, "Rohtak Mandi": 32.0, "Panipat Mandi": 33.0, "Meerut Mandi": 30.0, "Hapur Mandi": 29.0},
+    "Cabbage":  {"Azadpur Mandi": 26.0, "Baraut Mandi": 29.0, "Rohtak Mandi": 28.0, "Panipat Mandi": 27.0, "Meerut Mandi": 24.0, "Hapur Mandi": 25.0},
+    "Cauliflower": {"Azadpur Mandi": 40.0, "Baraut Mandi": 44.0, "Rohtak Mandi": 42.0, "Panipat Mandi": 41.0, "Meerut Mandi": 38.0, "Hapur Mandi": 39.0},
+    "Mango":    {"Azadpur Mandi": 120.0, "Baraut Mandi": 110.0, "Rohtak Mandi": 105.0, "Panipat Mandi": 108.0, "Meerut Mandi": 125.0, "Hapur Mandi": 112.0},
+    "Banana":   {"Azadpur Mandi": 45.0, "Baraut Mandi": 42.0, "Rohtak Mandi": 40.0, "Panipat Mandi": 43.0, "Meerut Mandi": 47.0, "Hapur Mandi": 41.0},
+    "Apple":    {"Azadpur Mandi": 140.0, "Baraut Mandi": 132.0, "Rohtak Mandi": 130.0, "Panipat Mandi": 133.0, "Meerut Mandi": 136.0, "Hapur Mandi": 128.0},
+    "Wheat":    {"Azadpur Mandi": 25.0, "Baraut Mandi": 25.2, "Rohtak Mandi": 26.0, "Panipat Mandi": 25.5, "Meerut Mandi": 24.8, "Hapur Mandi": 25.1},
+    "Rice":     {"Azadpur Mandi": 38.0, "Baraut Mandi": 37.4, "Rohtak Mandi": 37.0, "Panipat Mandi": 39.0, "Meerut Mandi": 36.5, "Hapur Mandi": 36.8}
+  }
+}

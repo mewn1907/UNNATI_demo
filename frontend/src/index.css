@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-night text-ink font-sans;
+    background-image:
+      radial-gradient(ellipse 70% 45% at 75% -5%, rgba(16, 185, 129, 0.14), transparent),
+      radial-gradient(ellipse 55% 40% at 10% 100%, rgba(16, 185, 129, 0.07), transparent);
+    background-attachment: fixed;
+  }
+  ::selection {
+    @apply bg-emerald-400/30 text-white;
+  }
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-forest-300/60;
+    border: 2px solid rgb(6 10 8);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-forest-400/70;
+  }
+}
+
+@layer components {
+  /* Glass card — the core surface of the dark UI */
+  .card {
+    @apply rounded-2xl border border-white/[0.07] bg-white/[0.04] shadow-card backdrop-blur-md;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-mint-gradient px-6 py-3
+      text-sm font-bold text-emerald-950 shadow-glow transition-all duration-200
+      hover:brightness-110 hover:shadow-lift active:scale-[0.98]
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-night
+      disabled:opacity-50 disabled:pointer-events-none disabled:shadow-none;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/[0.06]
+      px-6 py-3 text-sm font-semibold text-emerald-200 transition-all duration-200
+      hover:border-emerald-400/50 hover:bg-emerald-400/[0.12] active:scale-[0.98]
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-night;
+  }
+  .field-label {
+    @apply block font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-clay mb-1.5;
+  }
+  .field-input {
+    @apply w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[15px] text-ink
+      placeholder:text-clay/50 transition-colors
+      focus:outline-none focus:border-emerald-400/60 focus:bg-emerald-400/[0.05] focus:ring-2 focus:ring-emerald-400/20;
+  }
+  select.field-input option,
+  select.field-input optgroup {
+    @apply bg-surface text-ink;
+  }
+
+  /* Neon eyebrow label */
+  .eyebrow {
+    @apply font-mono text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-300/90;
+  }
+
+  /* Animated gradient headline text */
+  .text-gradient {
+    @apply bg-gradient-to-r from-emerald-300 via-mint to-emerald-400 bg-clip-text text-transparent;
+  }
+
+  /* Stitch wordmark gradient */
+  .wordmark {
+    background: linear-gradient(to right, #6ffbbe, #4edea3);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+/* WhatsApp-style chat, dark edition */
+.wa-wallpaper {
+  background-color: #0a120d;
+  background-image:
+    radial-gradient(rgba(94, 234, 212, 0.06) 1px, transparent 1px),
+    radial-gradient(rgba(94, 234, 212, 0.03) 1px, transparent 1px);
+  background-size: 22px 22px, 22px 22px;
+  background-position: 0 0, 11px 11px;
+}
+
+/* Leaflet — blend the map into the dark theme */
+.leaflet-container {
+  background: #0b120e;
+  font-family: inherit;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #101a14;
+  color: #e6f0e9;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.leaflet-popup-content {
+  margin: 10px 14px;
+  font-size: 12px;
+}
+.leaflet-control-zoom a {
+  background: #101a14 !important;
+  color: #e6f0e9 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.leaflet-control-zoom a:hover {
+  background: #18241c !important;
+}
+.leaflet-control-attribution {
+  background: rgba(6, 10, 8, 0.7) !important;
+  color: #8aa394 !important;
+}
+.leaflet-control-attribution a {
+  color: #34d399 !important;
+}

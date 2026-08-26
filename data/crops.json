@@ -1,0 +1,14 @@
+{
+  "crops": [
+    {"name": "Tomato", "category": "vegetable", "unit": "kg", "baseline_shelf_life_hours": 40, "temperature_sensitivity": 0.06},
+    {"name": "Potato", "category": "vegetable", "unit": "kg", "baseline_shelf_life_hours": 720, "temperature_sensitivity": 0.01},
+    {"name": "Onion", "category": "vegetable", "unit": "kg", "baseline_shelf_life_hours": 480, "temperature_sensitivity": 0.01},
+    {"name": "Cabbage", "category": "vegetable", "unit": "kg", "baseline_shelf_life_hours": 96, "temperature_sensitivity": 0.05},
+    {"name": "Cauliflower", "category": "vegetable", "unit": "kg", "baseline_shelf_life_hours": 72, "temperature_sensitivity": 0.05},
+    {"name": "Mango", "category": "fruit", "unit": "kg", "baseline_shelf_life_hours": 120, "temperature_sensitivity": 0.07},
+    {"name": "Banana", "category": "fruit", "unit": "kg", "baseline_shelf_life_hours": 84, "temperature_sensitivity": 0.07},
+    {"name": "Apple", "category": "fruit", "unit": "kg", "baseline_shelf_life_hours": 240, "temperature_sensitivity": 0.03},
+    {"name": "Wheat", "category": "grain", "unit": "kg", "baseline_shelf_life_hours": 8760, "temperature_sensitivity": 0.002},
+    {"name": "Rice", "category": "grain", "unit": "kg", "baseline_shelf_life_hours": 8760, "temperature_sensitivity": 0.002}
+  ]
+}
