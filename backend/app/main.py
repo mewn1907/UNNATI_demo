@@ -12,6 +12,7 @@ from app.api import (
     chat,
     crops,
     demo,
+    driver,
     farmers,
     health,
     listings,
@@ -96,6 +97,7 @@ for router in (
     weather.router,
     notifications.router,
     demo.router,
+    driver.router,
     chat.router,
 ):
     app.include_router(router)

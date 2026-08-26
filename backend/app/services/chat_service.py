@@ -28,7 +28,7 @@ from app.models.mandi import Mandi
 from app.models.recommendation import Recommendation
 from app.schemas.chat import ChatMessageOut, QuickReply
 from app.schemas.recommendation import RecommendationResponse
-from app.services import llm_service
+from app.services import driver_service, llm_service
 from app.services.recommendation_service import NoValidMatchError, get_recommendation, join_pool
 
 logger = logging.getLogger("Unnati.chat")
@@ -99,10 +99,13 @@ _LANG_HI_MARKERS = re.compile(r"[\u0900-\u097F]|हिंदी|hindi", re.IGNOR
 _LANG_EN_MARKERS = re.compile(
     r"\b([ie][nm]?g[aeiou]*l?[aeiou]*s?h|अंग्रेज़ी|अंग्रेजी|angrezi)\b", re.IGNORECASE
 )
+_ROLE_FARMER_MARKERS = re.compile(r"farmer|किसान|grower|खेती", re.IGNORECASE)
+_ROLE_DRIVER_MARKERS = re.compile(r"driver|ड्राइवर|चालक|truck owner|ट्रक", re.IGNORECASE)
 
 
 @dataclass
 class ChatSession:
+    role: str | None = None  # "farmer" | "driver"; asked on first contact.
     language: str | None = None  # "en" | "hi"; asked on first contact.
     crop: str | None = None
     quantity_kg: float | None = None
@@ -112,6 +115,7 @@ class ChatSession:
     harvested_at: datetime | None = None
     listing_id: int | None = None
     recommendation: dict | None = None
+    capacity_kg: float | None = None
     joined: bool = False
     updated_at: float = field(default_factory=time.time)
 
@@ -306,6 +310,71 @@ LANGUAGE_QUESTION = (
     "आप किस भाषा में बात करना चाहेंगे?\n"
     "Which language would you like to chat in?"
 )
+
+ROLE_QUESTION = (
+    "Namaste! 🙏 I'm *Unnati*.\n\n"
+    "आप कौन हैं? · Who are you?\n\n"
+    "🌾 *Farmer / किसान* — sell your produce\n"
+    "🚚 *Truck Driver / ड्राइवर* — find loads on your route"
+)
+
+ROLE_QUICK_REPLIES = [
+    QuickReply(label="🌾 Farmer / किसान", value="farmer"),
+    QuickReply(label="🚚 Truck Driver / ड्राइवर", value="driver"),
+]
+
+DRIVER_STRINGS: dict[str, dict[str, str]] = {
+    "en": {
+        "intro": (
+            "Great — let's find loads for your truck! 🚚\nHow much load can your "
+            "vehicle carry? e.g. *\"2500 kg\"* or *\"5 tonne\"*."
+        ),
+        "language_set": "Got it — we'll continue in English. 🇬🇧",
+        "ask_capacity": (
+            "How much load can your vehicle carry? 🚛 e.g. *\"2500 kg\"*, "
+            "*\"2 quintal\"* or *\"5 tonne\"*."
+        ),
+        "ask_origin": "Where do you usually start from? Village or town? 📍",
+        "summary_header": "🚚 *Loads ready near you:*",
+        "load_line": (
+            "• {crop} — {count} farmer(s), {kg} kg ({util}% truck filled)\n"
+            "  Best mandi: *{mandi}* · {dist} km · est. gross *₹{gross}*"
+        ),
+        "demo_note": "_Estimates use the same transport model farmers pay; prices are demo values._",
+        "reply_prompt": "Type *start over* to search another route or capacity.",
+        "no_loads": (
+            "😔 No farmer loads within pickup range right now.\n\n"
+            "Try a nearby bigger town or type *start over*."
+        ),
+    },
+    "hi": {
+        "intro": (
+            "बढ़िया — आपके ट्रक के लिए लोड खोजते हैं! 🚚\nआपकी गाड़ी कितना "
+            "वज़न ले जा सकती है? जैसे *\"2500 किलो\"* या *\"5 टन\"*।"
+        ),
+        "language_set": "ठीक है — हम हिंदी में बात करेंगे। 🙏",
+        "ask_capacity": (
+            "आपकी गाड़ी कितना वज़न ले जा सकती है? 🚛 जैसे *\"2500 किलो\"*, "
+            "*\"2 क्विंटल\"* या *\"5 टन\"*।"
+        ),
+        "ask_origin": "आप आमतौर पर कहाँ से शुरू करते हैं? गाँव या कस्बा? 📍",
+        "summary_header": "🚚 *आपके पास तैयार लोड:*",
+        "load_line": (
+            "• {crop} — {count} किसान, {kg} किलो (ट्रक {util}% भरा)\n"
+            "  सबसे अच्छी मंडी: *{mandi}* · {dist} किमी · अनुमानित कमाई *₹{gross}*"
+        ),
+        "demo_note": "_अनुमान उसी ट्रांसपोर्ट मॉडल से हैं जो किसान देते हैं; कीमतें डेमो हैं।_",
+        "reply_prompt": "दूसरा रूट या क्षमता खोजने के लिए *start over* लिखें।",
+        "no_loads": (
+            "😔 अभी पिकअप रेंज में कोई किसान लोड नहीं मिला।\n\n"
+            "पास का बड़ा कस्बा आज़माएँ या *start over* लिखें।"
+        ),
+    },
+}
+
+
+def _dt(session: ChatSession, key: str) -> str:
+    return DRIVER_STRINGS[session.language or "en"][key]
 
 STRINGS: dict[str, dict[str, str]] = {
     "en": {
@@ -604,6 +673,71 @@ _RESET_WORDS = {"reset", "start over", "naya", "restart", "नया शुर�
 _JOIN_WORDS = {"1", "1.", "one", "join", "join load", "haan", "yes", "han", "theek hai", "haan ji", "हाँ", "जी"}
 _OTHER_WORDS = {"2", "2.", "two", "other", "options", "other options", "aur", "और", "अन्य"}
 
+_DRIVER_START_OVER_QR = [QuickReply(label="Start over / नया शुरू", value="start over")]
+
+
+def _format_driver_summary(session: ChatSession, db: Session) -> ChatMessageOut:
+    try:
+        opportunities = driver_service.find_opportunities(
+            db, session.latitude, session.longitude, float(session.capacity_kg)
+        )
+    except ValueError:
+        return bot(_dt(session, "no_loads"), quick_replies=_DRIVER_START_OVER_QR)
+    if not opportunities:
+        return bot(_dt(session, "no_loads"), quick_replies=_DRIVER_START_OVER_QR)
+
+    lines = [_dt(session, "summary_header"), ""]
+    for o in opportunities[:3]:
+        lines.append(_dt(session, "load_line").format(
+            crop=o.crop,
+            count=o.load_count,
+            kg=f"{o.total_kg:,.0f}",
+            util=o.utilization_pct,
+            mandi=o.best_option.mandi_name,
+            dist=o.best_option.distance_km,
+            gross=f"{o.best_option.est_gross_inr:,.0f}",
+        ))
+    deterministic = "\n".join(lines)
+
+    if llm_service.llm_available():
+        reply = llm_service.driver_reply(
+            driver_service.driver_facts(opportunities[0]), session.language or "en"
+        )
+        if reply:
+            footer = "\n\n" + "\n".join(
+                [_dt(session, "demo_note"), _dt(session, "reply_prompt")])
+            deterministic = reply + footer
+
+    return bot(deterministic, quick_replies=_DRIVER_START_OVER_QR)
+
+
+def _handle_driver_message(session: ChatSession, db: Session, text: str) -> ChatMessageOut:
+    rules = _rule_extract(text, db)
+    if session.capacity_kg is None:
+        qty = rules["quantity_kg"]
+        if qty and 100 <= qty <= 50_000:
+            session.capacity_kg = qty
+        else:
+            return bot(_dt(session, "ask_capacity"))
+    if session.location_name is None:
+        if rules["location"]:
+            display, lat, lng = rules["location"]
+            session.location_name = display
+            session.latitude, session.longitude = lat, lng
+        else:
+            llm_fields = None
+            if llm_service.llm_available():
+                llm_fields = llm_service.extract_fields(text)
+            _merge_extraction(session, llm_fields, {
+                **rules,
+                "crop": None,
+                "quantity_kg": None,
+                "harvested_at": None,
+            })
+            if session.location_name is None or session.latitude is None:
+                return bot(_dt(session, "ask_origin"))
+    return _format_driver_summary(session, db)
+
 
 def handle_message(db: Session, session_id: str, text: str) -> ChatMessageOut:
     """Main conversational turn handler with Hindi/English language selection."""
@@ -613,10 +747,23 @@ def handle_message(db: Session, session_id: str, text: str) -> ChatMessageOut:
     if normalized in _RESET_WORDS:
         _SESSIONS.pop(session_id, None)
         session = _get_session(session_id)
-        return bot(LANGUAGE_QUESTION, quick_replies=[
-            QuickReply(label="हिंदी", value="हिंदी"),
-            QuickReply(label="English", value="English"),
-        ])
+        return bot(ROLE_QUESTION, quick_replies=ROLE_QUICK_REPLIES)
+
+    # Role gate — every conversation starts with farmer vs truck driver.
+    if session.role is None:
+        detected_role = None
+        if _ROLE_FARMER_MARKERS.search(text) and not _ROLE_DRIVER_MARKERS.search(text):
+            detected_role = "farmer"
+        elif _ROLE_DRIVER_MARKERS.search(text):
+            detected_role = "driver"
+        if detected_role is None:
+            return bot(ROLE_QUESTION, quick_replies=ROLE_QUICK_REPLIES)
+        session.role = detected_role
+        lang = _detect_language(text)
+        if lang is not None:
+            session.language = lang
+            intro = _t(session, "intro") if detected_role == "farmer" else _dt(session, "intro")
+            return bot("\n\n".join([_t(session, "language_set"), intro]))
 
     # Language selection gate — always resolved before the produce flow.
     detected = _detect_language(text)
@@ -632,7 +779,8 @@ def handle_message(db: Session, session_id: str, text: str) -> ChatMessageOut:
         stripped = _LANG_EN_MARKERS.sub(" ", normalized)
         stripped = _LANG_HI_MARKERS.sub(" ", stripped).strip()
         if not stripped or stripped in ("hi", "en"):
-            return bot("\n\n".join([_t(session, "language_set"), _t(session, "intro")]))
+            intro = _t(session, "intro") if session.role == "farmer" else _dt(session, "intro")
+            return bot("\n\n".join([_t(session, "language_set"), intro]))
 
     # Allow switching language mid-conversation by naming it explicitly.
     elif detected is not None and detected != session.language:
@@ -643,7 +791,11 @@ def handle_message(db: Session, session_id: str, text: str) -> ChatMessageOut:
             remainder = re.sub(r"(हिंदी|\bhindi\b)", " ", remainder)
         if len(remainder.strip()) <= 4:
             session.language = detected
-            return bot("\n\n".join([_t(session, "language_set"), _t(session, "intro")]))
+            intro = _t(session, "intro") if session.role == "farmer" else _dt(session, "intro")
+            return bot("\n\n".join([_t(session, "language_set"), intro]))
+
+    if session.role == "driver":
+        return _handle_driver_message(session, db, text)
 
     # Post-recommendation controls.
     if session.recommendation and normalized in _JOIN_WORDS:

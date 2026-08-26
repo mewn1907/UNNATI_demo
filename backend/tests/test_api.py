@@ -92,13 +92,18 @@ def test_matching_candidates_endpoint(client):
 def test_chat_conversation_flow(client):
     session_id = "pytest-chat-01"
 
-    # Every fresh conversation starts by asking the preferred language.
+    # Every fresh conversation starts by asking the user's role.
     r1 = client.post("/api/chat", json={
         "session_id": session_id,
         "text": "I have 800 kg tomatoes ready today from Nangloi",
     })
     assert r1.status_code == 200
-    assert "language" in r1.json()["reply"]["text"]
+    text1 = r1.json()["reply"]["text"]
+    assert "farmer" in text1.lower() and "driver" in text1.lower()
+
+    # Choosing farmer leads to the language question.
+    r_role = client.post("/api/chat", json={"session_id": session_id, "text": "farmer"})
+    assert "language" in r_role.json()["reply"]["text"].lower()
 
     r_lang = client.post("/api/chat", json={"session_id": session_id, "text": "english"})
     assert r_lang.status_code == 200
@@ -107,6 +112,7 @@ def test_chat_conversation_flow(client):
     r2 = client.post("/api/chat", json={"session_id": session_id, "text": "start over"})
     assert "Namaste" in r2.json()["reply"]["text"]
 
+    client.post("/api/chat", json={"session_id": session_id, "text": "farmer"})
     client.post("/api/chat", json={"session_id": session_id, "text": "english"})
     r3 = client.post("/api/chat", json={"session_id": session_id, "text": "500 kg aalu Kharkhoda kal"})
     text3 = r3.json()["reply"]["text"]
@@ -116,8 +122,8 @@ def test_chat_conversation_flow(client):
 def test_chat_hindi_flow(client):
     session_id = "pytest-chat-hi"
 
-    # Choosing Hindi yields a Hindi intro.
-    r1 = client.post("/api/chat", json={"session_id": session_id, "text": "हिंदी"})
+    # Choosing the role first; Devanagari also sets the language.
+    r1 = client.post("/api/chat", json={"session_id": session_id, "text": "किसान"})
     assert r1.status_code == 200
     assert "चलिए शुरू करें" in r1.json()["reply"]["text"]
 
@@ -135,16 +141,36 @@ def test_chat_hindi_flow(client):
     assert r3.status_code == 200
 
 
+def test_chat_driver_flow(client):
+    session_id = "pytest-chat-driver"
+
+    r1 = client.post("/api/chat", json={"session_id": session_id, "text": "driver"})
+    assert r1.status_code == 200
+    text1 = r1.json()["reply"]["text"]
+    assert "English" in text1 and ("हिंदी" in text1 or "language" in text1)
+
+    r_lang = client.post("/api/chat", json={"session_id": session_id, "text": "english"})
+    assert "truck" in r_lang.json()["reply"]["text"].lower()
+
+    r_cap = client.post("/api/chat", json={"session_id": session_id, "text": "2500 kg"})
+    assert "where" in r_cap.json()["reply"]["text"].lower() or "📍" in r_cap.json()["reply"]["text"]
+
+    r_origin = client.post("/api/chat", json={"session_id": session_id, "text": "Nangloi"})
+    summary = r_origin.json()["reply"]["text"]
+    assert "₹" in summary
+    assert any(w in summary.lower() for w in ("mandi", "मंडी"))
+
+
 def test_chat_language_required_first(client):
     session_id = "pytest-chat-lang"
 
     r1 = client.post("/api/chat", json={"session_id": session_id, "text": "hello there"})
     assert r1.status_code == 200
     text = r1.json()["reply"]["text"]
-    assert "भाषा" in text and "language" in text
+    assert "farmer" in text.lower() and "driver" in text.lower()
 
-    # Quick-reply style choice sets the language and shows the intro.
-    r2 = client.post("/api/chat", json={"session_id": session_id, "text": "हिंदी"})
+    # Quick-reply style role choice sets the role; Hindi script sets language.
+    r2 = client.post("/api/chat", json={"session_id": session_id, "text": "हिंदी किसान"})
     assert "हम हिंदी में बात करेंगे" in r2.json()["reply"]["text"]
 
 

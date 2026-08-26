@@ -263,3 +263,38 @@ def chat_reply(facts: dict[str, Any], language: str) -> str | None:
     if not text or len(text) > 2500 or len(text) < 10:
         return None
     return text
+
+
+DRIVER_REPLY_SYSTEM_PROMPT_TEMPLATE = """You are Unnati, a warm WhatsApp-style assistant helping
+a TRUCK DRIVER who has just received load opportunities computed by deterministic software.
+
+Write ONE short WhatsApp message (max ~120 words) presenting the facts below.
+You MUST:
+- respond in {language};
+- use ONLY the supplied facts;
+- preserve every number, price, mandi name and quantity exactly as given;
+- keep it friendly and simple for a driver (short sentences, a few emojis);
+- mention that prices are demo values.
+
+You MUST NOT:
+- perform any calculations or create new numbers;
+- invent farmers, loads, mandis, routes or options;
+- guarantee earnings.
+
+Return plain message text only — no JSON, no code fences."""
+
+
+def driver_reply(facts: dict[str, Any], language: str) -> str | None:
+    """Natural-language chat presentation of validated driver facts."""
+    system_prompt = DRIVER_REPLY_SYSTEM_PROMPT_TEMPLATE.format(
+        language=LANGUAGE_NAMES.get(language, LANGUAGE_NAMES["en"])
+    )
+    raw = _chat_completion(
+        system_prompt, json.dumps(facts, ensure_ascii=False, default=str)
+    )
+    if not raw:
+        return None
+    text = raw.strip().strip("`").strip()
+    if not text or len(text) > 2500 or len(text) < 10:
+        return None
+    return text
