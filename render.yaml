@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: unnati-demo
+    runtime: python
+    plan: free
+    buildCommand: |
+      pip install -r backend/requirements.txt
+      cd frontend && npm install --include=dev && npm run build
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: NODE_VERSION
+        value: "20"
+      - key: DATABASE_URL
+        value: sqlite:///./Unnati.db
+      - key: DEMO_MODE
+        value: "true"
+      - key: CORS_ORIGINS
+        value: ""
+      - key: OPENROUTER_API_KEY
+        sync: false

@@ -1,10 +1,12 @@
 """Unnati FastAPI application entry point."""
 
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api import (
     chat,
@@ -97,3 +99,20 @@ for router in (
     chat.router,
 ):
     app.include_router(router)
+
+# Serve the built React frontend (single-service deployment, e.g. Render).
+_DIST_DIR = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if _DIST_DIR.is_dir():
+    app.mount(
+        "/assets",
+        StaticFiles(directory=_DIST_DIR / "assets"),
+        name="frontend-assets",
+    )
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str) -> FileResponse:
+        """Client-side routing: unknown paths return index.html."""
+        candidate = _DIST_DIR / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(_DIST_DIR / "index.html")
