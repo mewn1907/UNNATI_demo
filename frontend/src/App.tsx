@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import Layout from "@/components/Layout";
 import AnalysisPage from "@/pages/AnalysisPage";
@@ -8,9 +9,19 @@ import NetworkPage from "@/pages/NetworkPage";
 import RecommendationPage from "@/pages/RecommendationPage";
 import SellPage from "@/pages/SellPage";
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [pathname]);
+  return null;
+}
+
 export default function App() {
   return (
-    <Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/sell" element={<SellPage />} />
@@ -20,6 +31,7 @@ export default function App() {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
-    </Routes>
+      </Routes>
+    </>
   );
 }

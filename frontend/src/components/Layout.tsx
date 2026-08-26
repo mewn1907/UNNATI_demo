@@ -271,7 +271,6 @@ export default function Layout() {
               <button className="hover:text-primary text-left" onClick={() => navigate("/chat")}>
                 Chat Assistant
               </button>
-              <span className="text-sm">Prices &amp; weather are demo data</span>
             </div>
           </div>
           <div className="w-full mt-8 pt-8 border-t border-outline-variant/10 text-center text-sm opacity-50">
