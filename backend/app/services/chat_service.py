@@ -16,6 +16,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from difflib import get_close_matches
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -95,7 +96,9 @@ _RELATIVE_TIME_RE = re.compile(
 _DEVANAGARI_DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
 
 _LANG_HI_MARKERS = re.compile(r"[\u0900-\u097F]|हिंदी|hindi", re.IGNORECASE)
-_LANG_EN_MARKERS = re.compile(r"\b(english|अंग्रेज़ी|अंग्रेजी|angrezi)\b", re.IGNORECASE)
+_LANG_EN_MARKERS = re.compile(
+    r"\b([ie][nm]?g[aeiou]*l?[aeiou]*s?h|अंग्रेज़ी|अंग्रेजी|angrezi)\b", re.IGNORECASE
+)
 
 
 @dataclass
@@ -167,6 +170,18 @@ def _location_index(db: Session) -> dict[str, tuple[str, float, float]]:
     return index
 
 
+def _fuzzy_crop(lowered: str) -> str | None:
+    """Typo-tolerant crop match, e.g. 'tomoto', 'pyaajj', 'gobhii'."""
+    best: tuple[int, str] | None = None
+    for token in re.findall(r"[a-z\u0900-\u097F]+", lowered):
+        if len(token) < 4:
+            continue
+        matches = get_close_matches(token, CROP_SYNONYMS.keys(), n=1, cutoff=0.8)
+        if matches and (best is None or len(matches[0]) > best[0]):
+            best = (len(matches[0]), CROP_SYNONYMS[matches[0]])
+    return best[1] if best else None
+
+
 def _rule_extract(text: str, db: Session) -> dict:
     """Deterministic English/Hinglish/Devanagari extraction."""
     lowered = text.lower().translate(_DEVANAGARI_DIGITS)
@@ -176,6 +191,8 @@ def _rule_extract(text: str, db: Session) -> dict:
         if re.search(rf"{re.escape(synonym)}", lowered):
             crop = CROP_SYNONYMS[synonym]
             break
+    if crop is None:
+        crop = _fuzzy_crop(lowered)
 
     # Avoid capturing quantities embedded in time phrases like "in 3 days".
     searchable = _TIME_WORDS_RE.sub(" ", lowered)
@@ -203,6 +220,15 @@ def _rule_extract(text: str, db: Session) -> dict:
         if re.search(rf"{re.escape(key)}", lowered) and len(key) > best_len:
             location = entry
             best_len = len(key)
+    if location is None:
+        # Typo-tolerant location match, e.g. 'nangloy', 'kharakhoda'.
+        for token in re.findall(r"[a-z\u0900-\u097F]+", lowered):
+            if len(token) < 5:
+                continue
+            matches = get_close_matches(token, index.keys(), n=1, cutoff=0.8)
+            if matches and len(matches[0]) > best_len:
+                location = index[matches[0]]
+                best_len = len(matches[0])
 
     harvested_at = None
     now = datetime.now()
@@ -643,7 +669,12 @@ def handle_message(db: Session, session_id: str, text: str) -> ChatMessageOut:
     rules = _rule_extract(text, db)
     llm_fields = None
     if llm_service.llm_available():
-        llm_fields = llm_service.extract_fields(text)
+        context = {
+            "known_crop": session.crop,
+            "known_quantity_kg": session.quantity_kg,
+            "known_location": session.location_name,
+        }
+        llm_fields = llm_service.extract_fields(text, context)
     _merge_extraction(session, llm_fields, rules)
 
     missing = session.missing_fields()

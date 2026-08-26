@@ -65,18 +65,26 @@ Respond with JSON only, using this exact shape:
 }"""
 
 EXTRACTION_SYSTEM_PROMPT = """You extract structured farm-produce details from a
-farmer's message (which may be English, Hinglish, or Hindi written in
-Devanagari script).
+farmer's message. The message may be English, Hinglish, Hindi in Devanagari
+script, or spoken-style text containing typos, misspellings and voice-to-text
+transcription errors (e.g. "tmatar", "i hav 50 kuintal aalo near nangloy",
+"tamato 800kg"). Interpret noisy input generously and correct obvious mistakes.
 
 Return JSON only:
 {"crop": string|null, "quantity_kg": number|null, "location_text": string|null, "harvest_hint": string|null}
 
 Rules:
-- crop: single crop word as written (e.g. "tomato", "tamatar", "potato").
-- quantity_kg: numeric kilograms; convert quintals to kg (1 quintal = 100 kg); convert tonnes to kg (1 tonne = 1000 kg).
-- location_text: village/town/area name if mentioned.
+- crop: the corrected English crop name even if misspelled or transliterated
+  ("tomoto"/"tmatar"/"टमेटर" -> "Tomato"; "aalo" -> "Potato").
+- quantity_kg: numeric kilograms; convert quintals to kg (1 quintal = 100 kg);
+  convert tonnes to kg (1 tonne = 1000 kg); handle Devanagari digits.
+- location_text: village/town/area name if mentioned; correct obvious spelling
+  mistakes against well-known Delhi-NCR locations (e.g. "nangloy" -> "Nangloi").
 - harvest_hint: when the produce was or will be harvested ("this morning", "kal", "in 3 days").
-Extract only what the message actually says; use null for anything not stated."""
+Extract only what the message actually says; use null for anything not stated.
+You may also receive a JSON object of already-known conversation details — use it
+for context when the reply is short (e.g. answering just "500" after being asked
+the quantity), but never invent facts that are not stated or implied."""
 
 
 def llm_available() -> bool:
@@ -190,9 +198,14 @@ def explain_recommendation(facts: dict[str, Any]) -> tuple[LLMExplanation, bool]
     return build_fallback_explanation(facts), False
 
 
-def extract_fields(text: str) -> ExtractedFields:
+def extract_fields(text: str, context: dict[str, Any] | None = None) -> ExtractedFields:
     """LLM extraction with graceful failure (caller applies rule fallback)."""
-    raw = _chat_completion(EXTRACTION_SYSTEM_PROMPT, text)
+    user_payload = text
+    if context:
+        user_payload = (
+            json.dumps(context, ensure_ascii=False, default=str) + "\n" + text
+        )
+    raw = _chat_completion(EXTRACTION_SYSTEM_PROMPT, user_payload)
     parsed = _parse_json_block(raw)
     if parsed is None:
         return ExtractedFields()
