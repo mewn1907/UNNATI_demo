@@ -280,8 +280,7 @@ export default function LandingPage() {
             {steps.map((step) => (
               <div
                 key={step.number}
-                className="relative z-10 bg-[rgba(16,24,20,0.6)] backdrop-blur-xl rounded-2xl p-8 ring-1 ring-primary/15 shadow-xl shadow-surface-container-lowest flex flex-col gap-6 group hover:ring-primary/40 transition-colors cursor-pointer"
-                onClick={() => navigate(step.to)}
+                className="relative z-10 bg-[rgba(16,24,20,0.6)] backdrop-blur-xl rounded-2xl p-8 ring-1 ring-primary/15 shadow-xl shadow-surface-container-lowest flex flex-col gap-6 group"
               >
                 <div className="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center ring-1 ring-outline/20 group-hover:bg-primary/10 transition-colors">
                   <span className="font-data-lg text-primary">{step.number}</span>
