@@ -91,6 +91,8 @@ export const api = {
   trucks: () => request<TruckInfo[]>("/trucks"),
   mandis: () => request<MandiInfo[]>("/mandis"),
   prices: () => request<PriceRecord[]>("/mandis/prices"),
+  pricesHistory: (days = 7) =>
+    request<PriceRecord[]>(`/mandis/prices/history?days=${days}`),
   notifications: (farmerId: number) =>
     request<NotificationItem[]>(`/notifications/${farmerId}`),
 

@@ -1,14 +1,38 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { api } from "@/services/api";
+
+const MANDI_COLORS = [
+  "#4edea3",
+  "#ffb95f",
+  "#62dcad",
+  "#7aa2ff",
+  "#ff8fa3",
+  "#c792ea",
+];
 
 export default function NetworkPage() {
   const { data: trucks } = useQuery({ queryKey: ["trucks"], queryFn: api.trucks });
   const { data: prices } = useQuery({ queryKey: ["prices"], queryFn: api.prices });
+  const { data: priceHistory } = useQuery({
+    queryKey: ["priceHistory"],
+    queryFn: () => api.pricesHistory(7),
+  });
   const { data: farmers } = useQuery({ queryKey: ["farmers"], queryFn: api.farmers });
 
   const [priceCrop, setPriceCrop] = useState<string | null>(null);
+  const [priceView, setPriceView] = useState<"trend" | "today">("trend");
   const [truckSort, setTruckSort] = useState<"departure" | "capacity">("departure");
   const [showAllFarmers, setShowAllFarmers] = useState(false);
 
@@ -32,6 +56,53 @@ export default function NetworkPage() {
       }))
       .sort((a, b) => b.price_per_kg - a.price_per_kg);
   }, [prices, activeCrop]);
+
+  const trend = useMemo(() => {
+    const rows = (priceHistory ?? []).filter((p) => p.crop === activeCrop);
+    if (rows.length === 0) return { series: [], mandis: [] as string[] };
+    const mandis: string[] = [];
+    const byDay = new Map<number, { ts: number; day: string } & Record<string, number | string>>();
+    for (const r of rows) {
+      if (!mandis.includes(r.mandi)) mandis.push(r.mandi);
+      const d = new Date(r.recorded_at);
+      const key = d.getTime();
+      let entry = byDay.get(key);
+      if (!entry) {
+        entry = {
+          ts: key,
+          day: d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+        } as { ts: number; day: string } & Record<string, number | string>;
+        byDay.set(key, entry);
+      }
+      entry[r.mandi] = r.price_per_kg;
+    }
+    return {
+      series: [...byDay.values()].sort((a, b) => a.ts - b.ts),
+      mandis,
+    };
+  }, [priceHistory, activeCrop]);
+
+  const priceStats = useMemo(() => {
+    const current = mandiBars[0] ?? null;
+    let topGainer: { mandi: string; changePct: number } | null = null;
+    for (const m of trend.mandis) {
+      const values = trend.series
+        .map((s) => s[m])
+        .filter((v): v is number => typeof v === "number");
+      if (values.length < 2) continue;
+      const first = values[0];
+      const last = values[values.length - 1];
+      const changePct = ((last - first) / first) * 100;
+      if (!topGainer || changePct > topGainer.changePct) {
+        topGainer = { mandi: m, changePct };
+      }
+    }
+    const avg =
+      mandiBars.length > 0
+        ? mandiBars.reduce((a, b) => a + b.price_per_kg, 0) / mandiBars.length
+        : 0;
+    return { best: current, topGainer, avg };
+  }, [mandiBars, trend]);
 
   const avgPriceSpike = useMemo(() => {
     // Max deviation of any single mandi price above the crop average (demo data).
@@ -188,13 +259,35 @@ export default function NetworkPage() {
               {priceSourceLabel}
             </span>
           </div>
-          <div className="mb-12">
-            <h2 className="text-headline-md font-headline-md text-on-surface mb-2 capitalize">
-              {activeCrop || "…"} Pricing Indices
-            </h2>
-            <p className="text-label-mono font-label-mono text-on-surface-variant uppercase">
-              Current ₹/kg across NCR Mandis
-            </p>
+          <div className="mb-10">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-headline-md font-headline-md text-on-surface mb-2 capitalize">
+                  {activeCrop || "…"} Pricing Indices
+                </h2>
+                <p className="text-label-mono font-label-mono text-on-surface-variant uppercase">
+                  ₹/kg across NCR Mandis · 7-day trend
+                </p>
+              </div>
+              <div
+                className="flex items-center rounded-full p-0.5 bg-surface-container-high/80"
+                style={{ boxShadow: "inset 0 0 0 1px rgba(110, 231, 183, 0.15)" }}
+              >
+                {(["trend", "today"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setPriceView(mode)}
+                    className={`px-3 py-1 rounded-full font-label-mono text-[10px] uppercase tracking-wider transition-colors ${
+                      priceView === mode
+                        ? "bg-primary/20 text-primary"
+                        : "text-on-surface-variant hover:text-primary"
+                    }`}
+                  >
+                    {mode === "trend" ? "7d Trend" : "Today"}
+                  </button>
+                ))}
+              </div>
+            </div>
             {cropsWithPrices.length > 1 && (
               <div className="flex flex-wrap gap-2 mt-3">
                 {cropsWithPrices.map((c) => (
@@ -212,7 +305,81 @@ export default function NetworkPage() {
                 ))}
               </div>
             )}
+            {priceStats.best && (
+              <div className="flex flex-wrap gap-2 mt-4">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 font-label-mono text-[10px] uppercase text-primary">
+                  <span className="material-symbols-outlined text-[13px]">trending_up</span>
+                  Best now · {priceStats.best.label} ₹{priceStats.best.price_per_kg.toFixed(0)}/kg
+                </span>
+                {priceStats.topGainer && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-label-mono text-[10px] uppercase border ${
+                      priceStats.topGainer.changePct >= 0
+                        ? "bg-secondary/10 border-secondary/30 text-secondary"
+                        : "bg-error/10 border-error/30 text-error"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[13px]">query_stats</span>
+                    Top mover 7d · {priceStats.topGainer.mandi}{" "}
+                    {priceStats.topGainer.changePct >= 0 ? "+" : ""}
+                    {priceStats.topGainer.changePct.toFixed(1)}%
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high border border-outline-variant/30 font-label-mono text-[10px] uppercase text-on-surface-variant">
+                  <span className="material-symbols-outlined text-[13px]">functions</span>
+                  Avg ₹{priceStats.avg.toFixed(1)}/kg
+                </span>
+              </div>
+            )}
           </div>
+          {priceView === "trend" ? (
+            <div className="relative h-64 w-full pb-2">
+              {trend.series.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trend.series} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+                    <CartesianGrid stroke="rgba(134,148,138,0.12)" vertical={false} />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fill: "#bbcabf", fontSize: 10 }}
+                      stroke="rgba(134,148,138,0.25)"
+                    />
+                    <YAxis
+                      tick={{ fill: "#bbcabf", fontSize: 10 }}
+                      stroke="rgba(134,148,138,0.25)"
+                      domain={["auto", "auto"]}
+                      tickFormatter={(v: number) => `₹${v}`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#1c211e",
+                        border: "1px solid rgba(110,231,183,0.2)",
+                        borderRadius: 8,
+                        fontSize: 12,
+                      }}
+                      labelStyle={{ color: "#dfe4df" }}
+                      formatter={(value: number | string) => [`₹${Number(value).toFixed(2)}/kg`, ""]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} iconType="plainline" />
+                    {trend.mandis.map((m, i) => (
+                      <Line
+                        key={m}
+                        type="monotone"
+                        dataKey={m}
+                        stroke={MANDI_COLORS[i % MANDI_COLORS.length]}
+                        strokeWidth={2}
+                        dot={{ r: 2.5, strokeWidth: 0, fill: MANDI_COLORS[i % MANDI_COLORS.length] }}
+                        activeDot={{ r: 4 }}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center font-label-mono text-label-mono text-on-surface-variant animate-pulse">
+                  LOADING PRICE HISTORY…
+                </div>
+              )}
+            </div>
+          ) : (
           <div className="relative h-64 w-full flex items-end justify-around gap-4 px-4 pb-8">
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-8">
               {[1, 2, 3, 4].map((i) => (
@@ -253,6 +420,7 @@ export default function NetworkPage() {
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* Available Trucks */}

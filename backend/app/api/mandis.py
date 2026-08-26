@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,11 +31,15 @@ def list_mandis(db: Session = Depends(get_db)) -> list[dict]:
 
 @router.get("/prices", summary="Latest price per mandi for every crop (seeded demo data)")
 def all_prices(db: Session = Depends(get_db)) -> list[dict]:
-    rows = db.execute(select(MandiPrice, Mandi, Crop)
-                      .join(Mandi, MandiPrice.mandi_id == Mandi.id)
-                      .join(Crop, MandiPrice.crop_id == Crop.id)).all()
-    return [
-        {
+    rows = db.execute(
+        select(MandiPrice, Mandi, Crop)
+        .join(Mandi, MandiPrice.mandi_id == Mandi.id)
+        .join(Crop, MandiPrice.crop_id == Crop.id)
+        .order_by(MandiPrice.recorded_at)
+    ).all()
+    latest: dict[tuple[int, int], dict] = {}
+    for price, mandi, crop in rows:
+        latest[(mandi.id, crop.id)] = {
             "mandi_id": price.mandi_id,
             "mandi": mandi.name,
             "crop": crop.name,
@@ -41,6 +47,30 @@ def all_prices(db: Session = Depends(get_db)) -> list[dict]:
             "price_per_quintal": round(price.price_per_kg * 100),
             "recorded_at": price.recorded_at.isoformat(),
             "source": price.source,
+            "label": "Demo price · seeded prototype data",
+        }
+    return list(latest.values())
+
+
+@router.get("/prices/history",
+            summary="Recent daily price history per mandi and crop (seeded demo data)")
+def price_history(days: int = 7, db: Session = Depends(get_db)) -> list[dict]:
+    days = max(1, min(days, 30))
+    cutoff = datetime.now() - timedelta(days=days)
+    rows = db.execute(
+        select(MandiPrice, Mandi, Crop)
+        .join(Mandi, MandiPrice.mandi_id == Mandi.id)
+        .join(Crop, MandiPrice.crop_id == Crop.id)
+        .where(MandiPrice.recorded_at >= cutoff)
+        .order_by(MandiPrice.recorded_at)
+    ).all()
+    return [
+        {
+            "mandi_id": price.mandi_id,
+            "mandi": mandi.name,
+            "crop": crop.name,
+            "price_per_kg": price.price_per_kg,
+            "recorded_at": price.recorded_at.isoformat(),
             "label": "Demo price · seeded prototype data",
         }
         for price, mandi, crop in rows
@@ -55,9 +85,11 @@ def mandi_prices(mandi_id: int, db: Session = Depends(get_db)) -> list[dict]:
     rows = db.execute(
         select(MandiPrice, Crop).join(Crop, MandiPrice.crop_id == Crop.id)
         .where(MandiPrice.mandi_id == mandi_id)
+        .order_by(MandiPrice.recorded_at)
     ).all()
-    return [
-        {
+    latest: dict[int, dict] = {}
+    for price, crop in rows:
+        latest[crop.id] = {
             "crop": crop.name,
             "price_per_kg": price.price_per_kg,
             "price_per_quintal": round(price.price_per_kg * 100),
@@ -65,5 +97,4 @@ def mandi_prices(mandi_id: int, db: Session = Depends(get_db)) -> list[dict]:
             "source": price.source,
             "label": "Demo price · seeded prototype data",
         }
-        for price, crop in rows
-    ]
+    return list(latest.values())

@@ -10,6 +10,7 @@ stay relative to "today" no matter when the demo is launched.
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, time as dtime, timedelta
 from pathlib import Path
 
@@ -103,10 +104,21 @@ def seed() -> None:
         for crop_name, by_mandi in mandis_data["prices_per_kg"].items():
             crop = crops_by_name[crop_name]
             for mandi_name, price in by_mandi.items():
-                price_rows.append(
-                    MandiPrice(mandi_id=mandis_by_name[mandi_name].id, crop_id=crop.id,
-                               price_per_kg=price, source="seeded_demo", confidence=0.9)
-                )
+                mandi = mandis_by_name[mandi_name]
+                for days_ago in range(6, -1, -1):
+                    if days_ago == 0:
+                        day_price = price
+                    else:
+                        wave = math.sin(days_ago * 1.7 + mandi.id * 0.9 + crop.id)
+                        day_price = round(price * (1 + 0.05 * wave), 2)
+                    price_rows.append(
+                        MandiPrice(
+                            mandi_id=mandi.id, crop_id=crop.id,
+                            price_per_kg=day_price, source="seeded_demo",
+                            confidence=0.9,
+                            recorded_at=_today_at(6) - timedelta(days=days_ago),
+                        )
+                    )
         db.add_all(price_rows)
 
         farmers_by_id: dict[int, Farmer] = {}

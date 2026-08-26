@@ -78,7 +78,11 @@ def road_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def price_map_for_crop(db: Session, crop_id: int) -> dict[int, float]:
-    rows = db.execute(select(MandiPrice).where(MandiPrice.crop_id == crop_id)).scalars().all()
+    rows = db.execute(
+        select(MandiPrice)
+        .where(MandiPrice.crop_id == crop_id)
+        .order_by(MandiPrice.recorded_at)
+    ).scalars().all()
     return {row.mandi_id: row.price_per_kg for row in rows}
 
 
