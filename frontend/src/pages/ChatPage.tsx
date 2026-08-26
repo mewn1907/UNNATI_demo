@@ -56,8 +56,18 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [lang, setLang] = useState<"hi" | "en">("en");
+  const [listening, setListening] = useState(false);
+  const [micSupported] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      Boolean(
+        (window as any).SpeechRecognition ||
+          (window as any).webkitSpeechRecognition,
+      ),
+  );
   const nextId = useRef(1);
   const chatRef = useRef<HTMLDivElement>(null);
+  const recRef = useRef<{ stop: () => void } | null>(null);
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -66,6 +76,51 @@ export default function ChatPage() {
   }
 
   useEffect(scrollToBottom, [messages, typing]);
+
+  useEffect(() => {
+    return () => {
+      recRef.current?.stop();
+    };
+  }, []);
+
+  function toggleMic() {
+    if (listening) {
+      recRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const SR =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (!SR || typing) return;
+    const rec = new SR();
+    rec.lang = lang === "hi" ? "hi-IN" : "en-IN";
+    rec.interimResults = true;
+    rec.continuous = false;
+    const base = input.trim() ? input.trim() + " " : "";
+    rec.onresult = (e: any) => {
+      let transcript = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        transcript += e.results[i][0].transcript;
+      }
+      setInput(base + transcript);
+    };
+    rec.onend = () => {
+      recRef.current = null;
+      setListening(false);
+    };
+    rec.onerror = () => {
+      recRef.current = null;
+      setListening(false);
+    };
+    recRef.current = rec;
+    try {
+      rec.start();
+      setListening(true);
+    } catch {
+      setListening(false);
+    }
+  }
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -339,9 +394,23 @@ export default function ChatPage() {
                   if (e.key === "Enter") send(input);
                 }}
               />
-              <span className="material-symbols-outlined text-on-surface-variant text-[20px] cursor-pointer hover:text-primary">
-                mic
-              </span>
+              {micSupported && (
+                <button
+                  type="button"
+                  onClick={toggleMic}
+                  disabled={typing}
+                  aria-label={listening ? "Stop listening" : "Speak a message"}
+                  className={`text-[20px] cursor-pointer transition-colors ${
+                    listening
+                      ? "text-red-500 animate-pulse"
+                      : "text-on-surface-variant hover:text-primary"
+                  }`}
+                >
+                  <span className="material-symbols-outlined">
+                    {listening ? "mic_filled" : "mic"}
+                  </span>
+                </button>
+              )}
             </div>
             <button
               className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary-container flex items-center justify-center shadow-[0_0_15px_rgba(78,222,163,0.4)] text-on-primary hover:scale-105 transition-transform disabled:opacity-60"
