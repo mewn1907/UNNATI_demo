@@ -94,6 +94,30 @@
   background-position: 0 0, 11px 11px;
 }
 
+/* Assistant typing dots */
+.dot-pulse {
+  @apply w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block;
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+.dot-delay-1 {
+  animation-delay: 0.15s;
+}
+.dot-delay-2 {
+  animation-delay: 0.3s;
+}
+@keyframes dot-pulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
 /* Leaflet — blend the map into the dark theme */
 .leaflet-container {
   background: #0b120e;
