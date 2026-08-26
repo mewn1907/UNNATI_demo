@@ -76,6 +76,20 @@ them in farmer-friendly language. If the LLM is disabled, unreachable, or
 returns garbage, a deterministic fallback explanation is used automatically —
 the demo never breaks and never fakes success.
 
+## AI configuration (`backend/.env`, see `.env.example` at repo root)
+
+```env
+LLM_ENABLED=true
+LLM_PROVIDER=openrouter
+LLM_API_KEY=sk-or-...            # any OpenAI-compatible endpoint works
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL=openrouter/auto
+```
+
+> ⚠️ Note: the OpenRouter key bundled in this workspace's `.env` returns
+> HTTP 401 ("User not found") — it appears expired/revoked. The app still runs
+> perfectly using rule-based explanations; supply your own key for LLM text.
+
 ## Honest-data policy
 
 - Mandi prices: `Demo price · seeded prototype data` labels everywhere.
