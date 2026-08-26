@@ -274,6 +274,9 @@ export default function Layout() {
               <span className="text-sm">Prices &amp; weather are demo data</span>
             </div>
           </div>
+          <div className="w-full mt-8 pt-8 border-t border-outline-variant/10 text-center text-sm opacity-50">
+            © mewn
+          </div>
         </div>
       </footer>
     </div>

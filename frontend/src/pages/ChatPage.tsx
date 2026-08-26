@@ -139,7 +139,11 @@ export default function ChatPage() {
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center relative">
-              <span className="text-xl">🌾</span>
+              <img
+                src="/unnati_logo.png"
+                alt="Unnati Assistant"
+                className="w-10 h-10 rounded-full object-cover"
+              />
               <div className="absolute bottom-0 right-0 w-3 h-3 bg-primary rounded-full ring-2 ring-surface-container-high"></div>
             </div>
             <div className="flex flex-col">
@@ -180,7 +184,11 @@ export default function ChatPage() {
             msg.role === "bot" ? (
               <div key={msg.id} className="flex gap-2 max-w-[85%] self-start animate-fade-up">
                 <div className="w-6 h-6 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center mt-auto">
-                  <span className="text-xs">🌾</span>
+                  <img
+                    src="/unnati_logo.png"
+                    alt=""
+                    className="w-6 h-6 rounded-full object-cover"
+                  />
                 </div>
                 <div
                   className="bg-surface-container-highest/60 backdrop-blur-md p-3 rounded-2xl rounded-bl-sm text-on-surface font-body-md shadow-md flex flex-col gap-2"
