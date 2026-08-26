@@ -48,7 +48,11 @@ export default function Layout() {
             className="flex items-center gap-2 text-headline-md font-headline-md cursor-pointer"
             onClick={() => navigate("/")}
           >
-            <span className="text-3xl">🌾</span>
+            <img
+              src="/unnati_logo.png"
+              alt="Unnati logo"
+              className="h-9 w-9 rounded-full object-cover"
+            />
             <span className="wordmark tracking-tight">Unnati</span>
           </button>
           <nav className="hidden md:flex items-center gap-10">
