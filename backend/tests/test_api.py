@@ -92,21 +92,60 @@ def test_matching_candidates_endpoint(client):
 def test_chat_conversation_flow(client):
     session_id = "pytest-chat-01"
 
+    # Every fresh conversation starts by asking the preferred language.
     r1 = client.post("/api/chat", json={
         "session_id": session_id,
         "text": "I have 800 kg tomatoes ready today from Nangloi",
     })
     assert r1.status_code == 200
-    reply = r1.json()["reply"]
-    # Either a recommendation (all fields parsed) or one focused question.
-    assert reply["text"]
+    assert "language" in r1.json()["reply"]["text"]
+
+    r_lang = client.post("/api/chat", json={"session_id": session_id, "text": "english"})
+    assert r_lang.status_code == 200
+    assert "begin" in r_lang.json()["reply"]["text"].lower()
 
     r2 = client.post("/api/chat", json={"session_id": session_id, "text": "start over"})
     assert "Namaste" in r2.json()["reply"]["text"]
 
+    client.post("/api/chat", json={"session_id": session_id, "text": "english"})
     r3 = client.post("/api/chat", json={"session_id": session_id, "text": "500 kg aalu Kharkhoda kal"})
     text3 = r3.json()["reply"]["text"]
-    assert ("Potato" in text3) or ("kilograms" in text3) or ("Best option" in text3)
+    assert ("Potato" in text3) or ("kilograms" in text3) or ("option" in text3)
+
+
+def test_chat_hindi_flow(client):
+    session_id = "pytest-chat-hi"
+
+    # Choosing Hindi yields a Hindi intro.
+    r1 = client.post("/api/chat", json={"session_id": session_id, "text": "हिंदी"})
+    assert r1.status_code == 200
+    assert "चलिए शुरू करें" in r1.json()["reply"]["text"]
+
+    # A fully Devanagari message is parsed end-to-end.
+    r2 = client.post("/api/chat", json={
+        "session_id": session_id,
+        "text": "आज नांगलोई से ८०० किलो टमाटर तैयार है",
+    })
+    assert r2.status_code == 200
+    text2 = r2.json()["reply"]["text"]
+    assert any(word in text2 for word in ("विकल्प", "किलो", "ट्रक"))
+
+    # Joining works from the Hindi flow too.
+    r3 = client.post("/api/chat", json={"session_id": session_id, "text": "1"})
+    assert r3.status_code == 200
+
+
+def test_chat_language_required_first(client):
+    session_id = "pytest-chat-lang"
+
+    r1 = client.post("/api/chat", json={"session_id": session_id, "text": "hello there"})
+    assert r1.status_code == 200
+    text = r1.json()["reply"]["text"]
+    assert "भाषा" in text and "language" in text
+
+    # Quick-reply style choice sets the language and shows the intro.
+    r2 = client.post("/api/chat", json={"session_id": session_id, "text": "हिंदी"})
+    assert "हम हिंदी में बात करेंगे" in r2.json()["reply"]["text"]
 
 
 def test_demo_reset(client):

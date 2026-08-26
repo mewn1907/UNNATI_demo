@@ -65,7 +65,8 @@ Respond with JSON only, using this exact shape:
 }"""
 
 EXTRACTION_SYSTEM_PROMPT = """You extract structured farm-produce details from a
-farmer's message (which may be Hinglish or simple English).
+farmer's message (which may be English, Hinglish, or Hindi written in
+Devanagari script).
 
 Return JSON only:
 {"crop": string|null, "quantity_kg": number|null, "location_text": string|null, "harvest_hint": string|null}
@@ -210,3 +211,42 @@ def extract_fields(text: str) -> ExtractedFields:
             cleaned = str(value).strip()[:80]
             setattr(extracted, field_name, cleaned or None)
     return extracted
+
+
+LANGUAGE_NAMES = {"en": "simple English", "hi": "simple conversational Hindi (Devanagari script)"}
+
+CHAT_REPLY_SYSTEM_PROMPT_TEMPLATE = """You are Unnati, a warm WhatsApp-style assistant helping
+a farmer who has just received a load recommendation computed by deterministic software.
+
+Write ONE short WhatsApp message (max ~120 words) presenting the facts below.
+You MUST:
+- respond in {language};
+- use ONLY the supplied facts;
+- preserve every number, price, truck id and mandi name exactly as given;
+- keep it friendly and simple for a farmer (short sentences, a few emojis);
+- mention that prices are demo values.
+
+You MUST NOT:
+- perform any calculations or create new numbers;
+- invent trucks, farmers, mandis, routes or options;
+- give financial guarantees.
+
+Return plain message text only — no JSON, no code fences."""
+
+
+def chat_reply(facts: dict[str, Any], language: str) -> str | None:
+    """Natural-language chat presentation of validated facts. Returns None to
+    signal fallback to the deterministic template."""
+    system_prompt = CHAT_REPLY_SYSTEM_PROMPT_TEMPLATE.format(
+        language=LANGUAGE_NAMES.get(language, LANGUAGE_NAMES["en"])
+    )
+    raw = _chat_completion(
+        system_prompt, json.dumps(facts, ensure_ascii=False, default=str)
+    )
+    if not raw:
+        return None
+    text = raw.strip().strip("`").strip()
+    # Basic sanitation: reject absurd lengths or empty output.
+    if not text or len(text) > 2500 or len(text) < 10:
+        return None
+    return text

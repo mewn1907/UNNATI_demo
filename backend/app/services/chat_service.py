@@ -1,10 +1,12 @@
 """WhatsApp-style conversational experience (demo simulator).
 
-Farmers talk naturally; the bot extracts crop / quantity / location / harvest,
-asks for missing pieces one at a time, runs the SAME deterministic
-recommendation engine as the web app, and lets the farmer join the load.
+Farmers talk naturally; the bot asks their preferred language (Hindi or
+English), extracts crop / quantity / location / harvest, asks for missing
+pieces one at a time, runs the SAME deterministic recommendation engine as
+the web app, and lets the farmer join the load.
 
-Extraction order: LLM (if enabled) → deterministic Hinglish rules fallback.
+Extraction order: LLM (if enabled) → deterministic Hinglish/Hindi rules.
+Recommendation presentation: LLM natural reply (if enabled) → bilingual template.
 """
 
 from __future__ import annotations
@@ -35,33 +37,70 @@ CHAT_FARMER_PHONE = "+91-90000-90909"
 
 CROP_SYNONYMS = {
     "tomato": "Tomato", "tomatoes": "Tomato", "tamatar": "Tomato", "tmatar": "Tomato",
+    "टमाटर": "Tomato", "टमेटर": "Tomato",
     "potato": "Potato", "potatoes": "Potato", "aloo": "Potato", "aalu": "Potato",
+    "आलू": "Potato",
     "onion": "Onion", "onions": "Onion", "pyaz": "Onion", "pyaaj": "Onion", "piyaz": "Onion",
+    "प्याज़": "Onion", "प्याज": "Onion",
     "cabbage": "Cabbage", "band gobhi": "Cabbage", "patta gobhi": "Cabbage",
+    "बंद गोभी": "Cabbage", "पत्ता गोभी": "Cabbage",
     "cauliflower": "Cauliflower", "phool gobhi": "Cauliflower", "gobhi": "Cauliflower",
+    "फूल गोभी": "Cauliflower", "गोभी": "Cauliflower",
     "mango": "Mango", "mangoes": "Mango", "aam": "Mango",
+    "आम": "Mango",
     "banana": "Banana", "bananas": "Banana", "kela": "Banana",
+    "केले": "Banana", "केला": "Banana",
     "apple": "Apple", "apples": "Apple", "seb": "Apple",
+    "सेब": "Apple",
     "wheat": "Wheat", "gehun": "Wheat", "kanak": "Wheat",
+    "गेहूँ": "Wheat", "गेहूं": "Wheat",
     "rice": "Rice", "chawal": "Rice", "dhaan": "Rice", "dhan": "Rice",
+    "चावल": "Rice", "धान": "Rice",
 }
+
+# Longest synonyms first so e.g. "फूल गोभी" wins over "गोभी".
+_CROP_SYNONYM_ORDER = sorted(CROP_SYNONYMS, key=len, reverse=True)
 
 LOCATION_EXTRA_NAMES = {
     "delhi": ("Delhi NCR", 28.6139, 77.209),
     "ncr": ("Delhi NCR", 28.6139, 77.209),
     "delhi ncr": ("Delhi NCR", 28.6139, 77.209),
     "azadpur": ("Azadpur, Delhi", 28.7056, 77.17),
+    # Devanagari names for seeded villages/mandis.
+    "नांगलोई": ("Nangloi", 28.683, 77.06),
+    "मुंडका": ("Mundka", 28.6808, 76.9791),
+    "बवाना": ("Bawana", 28.7985, 77.0374),
+    "खरखौदा": ("Kharkhoda", 28.8355, 77.0203),
+    "दिल्ली": ("Delhi NCR", 28.6139, 77.209),
+    "अजमालपुर": ("Azadpur, Delhi", 28.7056, 77.17),
+    "आजादपुर": ("Azadpur, Delhi", 28.7056, 77.17),
 }
 
 _QUANTITY_RE = re.compile(
-    r"(\d+(?:\.\d+)?)\s*(quintal|quintals|kuintal|kwintal|tonne?s?|kg|kgs|kilo[s]?|kilograms?)?",
+    r"(\d+(?:\.\d+)?)\s*"
+    r"(quintal|quintals|kuintal|kwintal|tonne?s?|kg|kgs|kilo[s]?|kilograms?|क्विंटल|किंटल|किलो|किग्रा)?",
     re.IGNORECASE,
 )
-_TIME_WORDS_RE = re.compile(r"in\s*\d+\s*(din|days?|hours?|hrs?|ghante)", re.IGNORECASE)
+_TIME_WORDS_RE = re.compile(
+    r"(?:in\s*\d+\s*(?:din|days?|hours?|hrs?|ghante)|\d+\s*(?:दिन|घंटे|घंटा)\s*(?:बाद|में))",
+    re.IGNORECASE,
+)
+_RELATIVE_TIME_RE = re.compile(
+    r"(?:(\d+)\s*(दिन|din|day|days|hours?|hrs?|ghante|घंटे|घंटा)\s*(?:बाद|में|mein|in|after))"
+    r"|(?:(?:in|after)\s+(\d+)\s*(दिन|din|day|days|hours?|hrs?|ghante|घंटे|घंटा))",
+    re.IGNORECASE,
+)
+
+# Devanagari digits → ASCII so quantity parsing works uniformly.
+_DEVANAGARI_DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
+
+_LANG_HI_MARKERS = re.compile(r"[\u0900-\u097F]|हिंदी|hindi", re.IGNORECASE)
+_LANG_EN_MARKERS = re.compile(r"\b(english|अंग्रेज़ी|अंग्रेजी|angrezi)\b", re.IGNORECASE)
 
 
 @dataclass
 class ChatSession:
+    language: str | None = None  # "en" | "hi"; asked on first contact.
     crop: str | None = None
     quantity_kg: float | None = None
     location_name: str | None = None
@@ -99,6 +138,14 @@ def _get_session(session_id: str) -> ChatSession:
     return session
 
 
+def _detect_language(text: str) -> str | None:
+    if _LANG_EN_MARKERS.search(text):
+        return "en"
+    if _LANG_HI_MARKERS.search(text):
+        return "hi"
+    return None
+
+
 def _location_index(db: Session) -> dict[str, tuple[str, float, float]]:
     """name(lower) -> (display, lat, lng); cached briefly."""
     global _LOCATION_INDEX
@@ -121,13 +168,13 @@ def _location_index(db: Session) -> dict[str, tuple[str, float, float]]:
 
 
 def _rule_extract(text: str, db: Session) -> dict:
-    """Deterministic Hinglish extraction used alongside/instead of the LLM."""
-    lowered = text.lower()
+    """Deterministic English/Hinglish/Devanagari extraction."""
+    lowered = text.lower().translate(_DEVANAGARI_DIGITS)
 
     crop = None
-    for synonym, canonical in CROP_SYNONYMS.items():
-        if re.search(rf"\b{re.escape(synonym)}\b", lowered):
-            crop = canonical
+    for synonym in _CROP_SYNONYM_ORDER:
+        if re.search(rf"{re.escape(synonym)}", lowered):
+            crop = CROP_SYNONYMS[synonym]
             break
 
     # Avoid capturing quantities embedded in time phrases like "in 3 days".
@@ -137,11 +184,12 @@ def _rule_extract(text: str, db: Session) -> dict:
         value, unit = float(match.group(1)), (match.group(2) or "").lower()
         if not unit and "." not in match.group(1) and len(match.group(1)) > 5:
             continue  # likely a phone number fragment
-        if unit.startswith(("quintal", "kuintal", "kwintal")):
+        if unit.startswith(("quintal", "kuintal", "kwintal", "क्विंटल", "किंटल")):
             quantity_kg = value * 100
-        elif unit.startswith("ton"):
+        elif unit.startswith(("ton", "टन")):
             quantity_kg = value * 1000
-        elif unit in ("kg", "kgs", "kilo", "kilos", "kilogram", "kilograms"):
+        elif unit in ("kg", "kgs", "kilo", "kilos", "kilogram", "kilograms",
+                      "किलो", "किग्रा"):
             quantity_kg = value
         elif unit == "" and value >= 20:  # bare number near crop context => kg
             quantity_kg = value
@@ -152,26 +200,29 @@ def _rule_extract(text: str, db: Session) -> dict:
     index = _location_index(db)
     best_len = 0
     for key, entry in index.items():
-        if re.search(rf"\b{re.escape(key)}\b", lowered) and len(key) > best_len:
+        if re.search(rf"{re.escape(key)}", lowered) and len(key) > best_len:
             location = entry
             best_len = len(key)
 
     harvested_at = None
     now = datetime.now()
-    if re.search(r"\b(today|aaj|abhi|just now)\b", lowered):
+    if re.search(r"(today|aaj|abhi|just now|आज)", lowered):
         harvested_at = now.replace(hour=6, minute=0, second=0, microsecond=0)
         if harvested_at > now:
             harvested_at = now - timedelta(hours=2)
-    elif re.search(r"\b(yesterday|kal tha|beeta kal)\b", lowered):
+    elif re.search(r"(yesterday|kal tha|beeta kal|बीता कल|बीते कल)", lowered):
         harvested_at = now - timedelta(days=1)
-    elif re.search(r"\b(kal|tomorrow)\b", lowered):
+    elif re.search(r"(parso|परसों|न परसों)", lowered):
+        harvested_at = now + timedelta(days=2)
+    elif re.search(r"(kal|tomorrow|कल)", lowered):
         harvested_at = now + timedelta(days=1)
     else:
-        relative = re.search(r"in\s+(\d+)\s*(din|day|days|hours?|hrs?|ghante)", lowered)
+        relative = _RELATIVE_TIME_RE.search(lowered)
         if relative:
-            amount = int(relative.group(1))
-            unit_word = relative.group(2)
-            delta_days = amount if unit_word.startswith(("din", "day")) else 0
+            amount_str = relative.group(1) or relative.group(3)
+            unit_word = relative.group(2) or relative.group(4) or ""
+            amount = int(amount_str)
+            delta_days = amount if re.search(r"din|day|दिन", unit_word, re.I) else 0
             delta_hours = 0 if delta_days else amount
             harvested_at = now + timedelta(days=delta_days, hours=delta_hours)
 
@@ -220,66 +271,222 @@ def bot(text: str, quick_replies: list[QuickReply] | None = None,
     )
 
 
-def _format_recommendation(rec: RecommendationResponse, session_crop: str) -> str:
+# ---------------------------------------------------------------------------
+# Bilingual message templates.
+# ---------------------------------------------------------------------------
+
+LANGUAGE_QUESTION = (
+    "Namaste! 🙏 I'm *Unnati* — your farming copilot.\n\n"
+    "आप किस भाषा में बात करना चाहेंगे?\n"
+    "Which language would you like to chat in?"
+)
+
+STRINGS: dict[str, dict[str, str]] = {
+    "en": {
+        "intro": (
+            "Great — let's begin! 🌾\nTell me what you harvested — e.g. "
+            "*\"I have 800 kg tomato ready today from Azadpur\"*."
+        ),
+        "language_set": "Got it — we'll continue in English. 🇬🇧",
+        "ask_crop": "Which crop are you selling? 🌱 (e.g. tomato, potato, wheat)",
+        "ask_quantity": "Great! How many kilograms are you selling?",
+        "ask_location": "Where is your farm? Village or nearest town? 📍",
+        "ask_harvest": "When was it harvested — today, yesterday, or a few days ago? 📅",
+        "noted": "Noted!",
+        "best_option": "🏆 *Best option for you:*",
+        "sell_at": "Sell at *{mandi}* ({price:.0f}/kg)",
+        "truck_departs": "🚚 Truck {truck} · departs {time} {return_label}",
+        "return_label": "🔁 RETURN TRIP",
+        "pool_line": "👨‍🌾 Pool: {count} farmers · {kg} kg loaded",
+        "earn_more": "💰 You could earn *₹{gain} MORE* than your nearest mandi",
+        "spoilage_high": "⏱ Spoilage risk: *{risk}* — move within ~{hours:.0f}h",
+        "spoilage_med": "⏱ Spoilage watch: medium — ~{hours:.0f}h window",
+        "demo_note": "_Prices are seeded demo values._",
+        "reply_prompt": "Reply *1️⃣ Join this load* or *2️⃣ Other options*.",
+        "alternatives_header": "Other options we found:",
+        "sell_nearby": "• Sell nearby ({mandi}): ₹{net} net",
+        "alt_option": "• {name}: ₹{net} net",
+        "alternatives_prompt": "Reply *1️⃣ Join the recommended load* or ask me anything else.",
+        "no_other_options": "No other options right now. Type *start over* to try another crop.",
+        "join_confirm": (
+            "✅ *Load confirmed!*\n\n{message}\n\n"
+            "🚚 Truck {truck}\n🕒 Departure: {departure}\n📍 Destination: {destination}\n\n"
+            "You'll get reminders before departure."
+        ),
+        "load_closed": "That load just closed. Let's find another option — tell me your crop again.",
+        "could_not_record": "I couldn't record that: {reason}. Let's try again — what did you harvest?",
+        "no_safe_load": (
+            "😔 I couldn't find a safe load right now.\n\nWe checked:\n"
+            "• nearby farmers\n• available trucks\n• mandi routes\n"
+            "• capacity\n• spoilage timing\n\n"
+            "Try increasing pickup radius or another crop day. Or type *start over*."
+        ),
+        "restart": (
+            "Namaste! 🙏 I'm Unnati.\nTell me what you harvested — "
+            "e.g. *\"I have 800 kg tomato ready today from Azadpur\"*."
+        ),
+        "need_language": "Please pick a language first — reply *Hindi* or *English*. 🙂",
+    },
+    "hi": {
+        "intro": (
+            "बढ़िया — चलिए शुरू करें! 🌾\nमुझे बताइए आपने क्या उगाया है — जैसे "
+            "*\"आज नांगलोई से 800 किलो टमाटर तैयार है\"*।"
+        ),
+        "language_set": "ठीक है — हम हिंदी में बात करेंगे। 🙏",
+        "ask_crop": "आप कौन सी फसल बेचना चाहते हैं? 🌱 (जैसे टमाटर, आलू, गेहूं)",
+        "ask_quantity": "बढ़िया! आप कितने किलो बेचना चाहते हैं?",
+        "ask_location": "आपका खेत कहाँ है? गाँव या नज़दीकी कस्बा? 📍",
+        "ask_harvest": "फसल कब कटी थी — आज, बीता कल, या कुछ दिन पहले? 📅",
+        "noted": "समझ गया!",
+        "best_option": "🏆 *आपके लिए सबसे अच्छा विकल्प:*",
+        "sell_at": "*{mandi}* में बेचें ({price:.0f}/किलो)",
+        "truck_departs": "🚚 ट्रक {truck} · प्रस्थान {time} {return_label}",
+        "return_label": "🔁 रिटर्न ट्रिप",
+        "pool_line": "👨‍🌾 पूल: {count} किसान · {kg} किलो लोड",
+        "earn_more": "💰 आप अपने नज़दीकी मंडी से *₹{gain} ज़्यादा* कमा सकते हैं",
+        "spoilage_high": "⏱ खराब होने का खतरा: *{risk}* — ~{hours:.0f} घंटे में भेजें",
+        "spoilage_med": "⏱ खराब होने की चेतावनी: मध्यम — ~{hours:.0f} घंटे का समय",
+        "demo_note": "_कीमतें डेमो (नमूना) डेटा हैं।_",
+        "reply_prompt": "*1️⃣ इस लोड से जुड़ें* या *2️⃣ अन्य विकल्प* भेजें।",
+        "alternatives_header": "हमें ये अन्य विकल्प मिले:",
+        "sell_nearby": "• नज़दीक में बेचें ({mandi}): ₹{net} शुद्ध",
+        "alt_option": "• {name}: ₹{net} शुद्ध",
+        "alternatives_prompt": "*1️⃣ सुझाए गए लोड से जुड़ें* या मुझसे कुछ और पूछें।",
+        "no_other_options": "अभी कोई अन्य विकल्प नहीं है। दूसरी फसल के लिए *start over* लिखें।",
+        "join_confirm": (
+            "✅ *लोड कन्फर्म!*\n\n{message}\n\n"
+            "🚚 ट्रक {truck}\n🕒 प्रस्थान: {departure}\n📍 गंतव्य: {destination}\n\n"
+            "प्रस्थान से पहले आपको रिमाइंडर मिलेंगे।"
+        ),
+        "load_closed": "वह लोड अभी बंद हो गया। कोई और विकल्प खोजते हैं — फिर से बताइए आपने क्या उगाया है।",
+        "could_not_record": "यह दर्ज नहीं हो सका: {reason}. चलिए फिर से — आपने क्या उगाया है?",
+        "no_safe_load": (
+            "😔 अभी कोई सुरक्षित लोड नहीं मिला।\n\nहमने जाँचा:\n"
+            "• आस-पास के किसान\n• उपलब्ध ट्रक\n• मंडी रूट\n"
+            "• क्षमता\n• खराब होने का समय\n\n"
+            "पिकअप रेडियस बढ़ाकर या किसी और दिन कोशिश करें। या *start over* लिखें।"
+        ),
+        "restart": (
+            "नमस्ते! 🙏 मैं Unnati हूँ।\nमुझे बताइए आपने क्या उगाया है — "
+            "जैसे *\"आज नांगलोई से 800 किलो टमाटर तैयार है\"*।"
+        ),
+        "need_language": "पहले भाषा चुनें — *हिंदी* या *English* लिखें। 🙂",
+    },
+}
+
+
+def _t(session: ChatSession, key: str) -> str:
+    lang = session.language or "en"
+    return STRINGS[lang][key]
+
+
+def _format_recommendation(rec: RecommendationResponse, session: ChatSession) -> str:
+    """LLM-presented message when available; deterministic template otherwise."""
     r = rec.recommended
+    pool_count = r.pool.farmer_count if r.pool else 1
+    facts = {
+        "crop": rec.crop_name,
+        "quantity_kg": rec.quantity_kg,
+        "village": r.pool.members[0].village if r.pool and r.pool.members else "your farm",
+        "recommended_mandi": r.mandi_name,
+        "price_per_kg": r.price_per_kg,
+        "truck": r.truck_id,
+        "is_return_trip": r.is_return_trip,
+        "departs": r.departure_at.strftime("%I:%M %p").lstrip("0") if r.departure_at else "",
+        "pool_farmer_count": pool_count,
+        "pool_total_kg": r.pool.total_quantity_kg if r.pool else rec.quantity_kg,
+        "net_gain_vs_nearest_mandi": rec.net_gain,
+        "spoilage_risk": rec.spoilage.risk_level,
+        "hours_remaining": rec.spoilage.hours_remaining,
+        "note": "prices are seeded demo values",
+    }
+    if llm_service.llm_available():
+        reply = llm_service.chat_reply(facts, session.language or "en")
+        if reply:
+            footer = "\n\n" + "\n".join([_t(session, "demo_note"), _t(session, "reply_prompt")])
+            return reply + footer
+
+    # Deterministic fallback template.
+    lang = session.language or "en"
+    emoji = "🍅" if "tomato" in rec.crop_name.lower() else "🌾"
+    if lang == "hi":
+        risk_hi = {"HIGH": "उच्च", "CRITICAL": "अति-उच्च", "MEDIUM": "मध्यम",
+                   "LOW": "कम"}.get(rec.spoilage.risk_level, rec.spoilage.risk_level)
+        qty_line = f"{rec.quantity_kg:.0f} किलो {rec.crop_name}"
+        if r.pool and r.pool.members:
+            qty_line += f" · 📍 {r.pool.members[0].village}"
+    else:
+        risk_hi = rec.spoilage.risk_level
+        qty_line = f"{rec.quantity_kg:.0f} kg {rec.crop_name}"
+        if r.pool and r.pool.members:
+            qty_line += f" · 📍 {r.pool.members[0].village}"
     lines = [
-        f"Got it! {'🍅' if 'tomato' in rec.crop_name.lower() else '🌾'}",
-        f"{rec.quantity_kg:.0f} kg {rec.crop_name} · 📍 {r.pool.members[0].village if r.pool and r.pool.members else 'your farm'}",
+        ("समझ गया! " if lang == "hi" else "Got it! ") + emoji,
+        qty_line,
         "",
-        "🏆 *Best option for you:*",
-        f"Sell at *{r.mandi_name}* ({r.price_per_kg:.0f}/kg)",
+        _t(session, "best_option"),
+        _t(session, "sell_at").format(mandi=r.mandi_name, price=r.price_per_kg),
     ]
     if r.truck_id:
-        trip_label = "🔁 RETURN TRIP" if r.is_return_trip else ""
-        lines.append(f"🚚 Truck {r.truck_id} · departs {r.departure_at.strftime('%I:%M %p').lstrip('0')} {trip_label}")
+        lines.append(_t(session, "truck_departs").format(
+            truck=r.truck_id,
+            time=r.departure_at.strftime("%I:%M %p").lstrip("0"),
+            return_label=_t(session, "return_label") if r.is_return_trip else "",
+        ))
     if r.pool and r.pool.farmer_count > 1:
-        lines.append(f"👨‍🌾 Pool: {r.pool.farmer_count} farmers · {r.pool.total_quantity_kg:,.0f} kg loaded")
+        lines.append(_t(session, "pool_line").format(
+            count=r.pool.farmer_count,
+            kg=f"{r.pool.total_quantity_kg:,.0f}",
+        ))
     if rec.net_gain > 0:
         lines.append("")
-        lines.append(f"💰 You could earn *₹{rec.net_gain:,.0f} MORE* than your nearest mandi")
+        lines.append(_t(session, "earn_more").format(gain=f"{rec.net_gain:,.0f}"))
     risk = rec.spoilage.risk_level
+    display_risk = risk_hi if lang == "hi" else risk
     if risk in ("HIGH", "CRITICAL"):
-        lines.append(f"⏱ Spoilage risk: *{risk}* — move within ~{rec.spoilage.hours_remaining:.0f}h")
+        lines.append(_t(session, "spoilage_high").format(
+            risk=display_risk, hours=rec.spoilage.hours_remaining))
     elif risk == "MEDIUM":
-        lines.append(f"⏱ Spoilage watch: medium — ~{rec.spoilage.hours_remaining:.0f}h window")
+        lines.append(_t(session, "spoilage_med").format(hours=rec.spoilage.hours_remaining))
     lines.append("")
-    lines.append("_Prices are seeded demo values._")
-    lines.append("Reply *1️⃣ Join this load* or *2️⃣ Other options*.")
+    lines.append(_t(session, "demo_note"))
+    lines.append(_t(session, "reply_prompt"))
     return "\n".join(lines)
 
 
-def _format_alternatives(rec: RecommendationResponse) -> str:
-    lines = ["Other options we found:", ""]
+def _format_alternatives(rec: RecommendationResponse, session: ChatSession) -> str:
+    lines = [_t(session, "alternatives_header"), ""]
+    baseline_net = rec.baseline.net_profit
+    lines.append(_t(session, "sell_nearby").format(
+        mandi=rec.baseline.mandi_name, net=f"{baseline_net:,.0f}"))
     options = [(rec.recommended.mandi_name, rec.recommended.net_profit)] + [
         (alt.mandi_name, alt.net_profit) for alt in rec.alternatives
     ]
-    baseline_net = rec.baseline.net_profit
-    lines.append(f"• Sell nearby ({rec.baseline.mandi_name}): ₹{baseline_net:,.0f} net")
     for name, net in options:
-        lines.append(f"• {name}: ₹{net:,.0f} net")
+        lines.append(_t(session, "alt_option").format(name=name, net=f"{net:,.0f}"))
     lines.append("")
-    lines.append("Reply *1️⃣ Join the recommended load* or ask me anything else.")
+    lines.append(_t(session, "alternatives_prompt"))
     return "\n".join(lines)
 
 
 def _handle_join(session: ChatSession, db: Session) -> ChatMessageOut:
     rec_data = session.recommendation
     if not rec_data or not rec_data.get("pool_id"):
-        return bot("Please share your harvest details again — what did you harvest?")
+        return bot(_t(session, "restart"))
     try:
         result = join_pool(db, rec_data["pool_id"], rec_data["listing_id"])
     except LookupError:
-        return bot("That load just closed. Let's find another option — tell me your crop again.")
+        return bot(_t(session, "load_closed"))
     departure = result.departure_at.strftime("%d %b · %I:%M %p").lstrip("0")
     session.joined = True
     return bot(
-        "✅ *Load confirmed!*\n\n"
-        f"{result.message}\n\n"
-        f"🚚 Truck {result.truck_id}\n"
-        f"🕒 Departure: {departure}\n"
-        f"📍 Destination: {result.destination_mandi}\n\n"
-        "You'll get reminders before departure.",
-        quick_replies=[QuickReply(label="Start over", value="start over")],
+        _t(session, "join_confirm").format(
+            message=result.message,
+            truck=result.truck_id,
+            departure=departure,
+            destination=result.destination_mandi,
+        ),
+        quick_replies=[QuickReply(label="Start over / नया शुरू", value="start over")],
         joined=True,
     )
 
@@ -288,7 +495,7 @@ def _produce_recommendation(session: ChatSession, db: Session) -> ChatMessageOut
     try:
         listing = _create_listing_from_session(db, session)
     except ValueError as exc:
-        return bot(f"I couldn't record that: {exc}. Let's try again — what did you harvest?")
+        return bot(_t(session, "could_not_record").format(reason=exc))
     session.listing_id = listing.id
 
     try:
@@ -296,14 +503,7 @@ def _produce_recommendation(session: ChatSession, db: Session) -> ChatMessageOut
     except NoValidMatchError:
         session.crop = None
         session.quantity_kg = None
-        return bot(
-            "😔 I couldn't find a safe load right now.\n\n"
-            "We checked:\n"
-            "• nearby farmers\n• available trucks\n• mandi routes\n"
-            "• capacity\n• spoilage timing\n\n"
-            "Try increasing pickup radius or another crop day. "
-            "Or type *start over*."
-        )
+        return bot(_t(session, "no_safe_load"))
 
     session.recommendation = {
         "recommendation_id": rec.recommendation_id,
@@ -311,11 +511,11 @@ def _produce_recommendation(session: ChatSession, db: Session) -> ChatMessageOut
         "pool_id": _pool_id_for(db, rec.recommendation_id),
     }
     return bot(
-        _format_recommendation(rec, session.crop),
+        _format_recommendation(rec, session),
         quick_replies=[
-            QuickReply(label="1 - Join load", value="1"),
-            QuickReply(label="2 - Other options", value="2"),
-            QuickReply(label="Start over", value="start over"),
+            QuickReply(label="1 - Join load / जुड़ें", value="1"),
+            QuickReply(label="2 - Other options / अन्य विकल्प", value="2"),
+            QuickReply(label="Start over / नया शुरू", value="start over"),
         ],
         recommendation_id=rec.recommendation_id,
     )
@@ -374,22 +574,55 @@ def _create_listing_from_session(db: Session, session: ChatSession) -> FarmerLis
     return listing
 
 
+_RESET_WORDS = {"reset", "start over", "naya", "restart", "नया शुरू", "दोबारा शुरू"}
+_JOIN_WORDS = {"1", "1.", "one", "join", "join load", "haan", "yes", "han", "theek hai", "haan ji", "हाँ", "जी"}
+_OTHER_WORDS = {"2", "2.", "two", "other", "options", "other options", "aur", "और", "अन्य"}
+
+
 def handle_message(db: Session, session_id: str, text: str) -> ChatMessageOut:
-    """Main conversational turn handler."""
+    """Main conversational turn handler with Hindi/English language selection."""
     normalized = text.strip().lower()
     session = _get_session(session_id)
 
-    if normalized in ("reset", "start over", "naya", "restart"):
+    if normalized in _RESET_WORDS:
         _SESSIONS.pop(session_id, None)
-        return bot(
-            "Namaste! 🙏 I'm Unnati.\nTell me what you harvested — "
-            "e.g. *\"I have 800 kg tomato ready today from Azadpur\"*."
-        )
+        session = _get_session(session_id)
+        return bot(LANGUAGE_QUESTION, quick_replies=[
+            QuickReply(label="हिंदी", value="हिंदी"),
+            QuickReply(label="English", value="English"),
+        ])
+
+    # Language selection gate — always resolved before the produce flow.
+    detected = _detect_language(text)
+    if session.language is None:
+        if detected is None:
+            return bot(LANGUAGE_QUESTION + "\n\n" + STRINGS["en"]["need_language"],
+                       quick_replies=[
+                           QuickReply(label="हिंदी", value="हिंदी"),
+                           QuickReply(label="English", value="English"),
+                       ])
+        session.language = detected
+        # If the message was ONLY the language choice, confirm + show intro.
+        stripped = _LANG_EN_MARKERS.sub(" ", normalized)
+        stripped = _LANG_HI_MARKERS.sub(" ", stripped).strip()
+        if not stripped or stripped in ("hi", "en"):
+            return bot("\n\n".join([_t(session, "language_set"), _t(session, "intro")]))
+
+    # Allow switching language mid-conversation by naming it explicitly.
+    elif detected is not None and detected != session.language:
+        remainder = normalized
+        if detected == "en":
+            remainder = _LANG_EN_MARKERS.sub(" ", remainder)
+        else:
+            remainder = re.sub(r"(हिंदी|\bhindi\b)", " ", remainder)
+        if len(remainder.strip()) <= 4:
+            session.language = detected
+            return bot("\n\n".join([_t(session, "language_set"), _t(session, "intro")]))
 
     # Post-recommendation controls.
-    if session.recommendation and normalized in ("1", "1.", "one", "join", "join load", "haan", "yes", "han", "theek hai"):
+    if session.recommendation and normalized in _JOIN_WORDS:
         return _handle_join(session, db)
-    if session.recommendation and normalized in ("2", "2.", "two", "other", "options", "other options", "aur"):
+    if session.recommendation and normalized in _OTHER_WORDS:
         rec_row = db.execute(
             select(Recommendation).where(
                 Recommendation.reference == session.recommendation["recommendation_id"]
@@ -398,10 +631,13 @@ def handle_message(db: Session, session_id: str, text: str) -> ChatMessageOut:
         if rec_row:
             try:
                 rec = get_recommendation(db, rec_row.farmer_listing_id)
-                return bot(_format_alternatives(rec), recommendation_id=rec.recommendation_id)
+                return bot(
+                    _format_alternatives(rec, session),
+                    recommendation_id=rec.recommendation_id,
+                )
             except NoValidMatchError:
                 pass
-        return bot("No other options right now. Type *start over* to try another crop.")
+        return bot(_t(session, "no_other_options"))
 
     # Extract whatever we can from this message.
     rules = _rule_extract(text, db)
@@ -421,12 +657,12 @@ def handle_message(db: Session, session_id: str, text: str) -> ChatMessageOut:
         if session.location_name:
             ack_parts.append(f"📍 {session.location_name}")
         ack = " ".join(ack_parts)
-        prefix = f"Noted! {ack}\n" if ack else ""
+        prefix = f"{_t(session, 'noted')} {ack}\n" if ack else ""
         questions = {
-            "crop": "Which crop are you selling? 🌱 (e.g. tomato, potato, wheat)",
-            "quantity": "Great! How many kilograms are you selling?",
-            "location": "Where is your farm? Village or nearest town? 📍",
-            "harvest": "When was it harvested — today, yesterday, or a few days ago? 📅",
+            "crop": _t(session, "ask_crop"),
+            "quantity": _t(session, "ask_quantity"),
+            "location": _t(session, "ask_location"),
+            "harvest": _t(session, "ask_harvest"),
         }
         return bot(prefix + questions[missing[0]])
 

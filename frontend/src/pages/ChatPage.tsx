@@ -22,15 +22,16 @@ function nowTime() {
 }
 
 const DEFAULT_QUICK_REPLIES: QuickReply[] = [
-  { label: "Sell my produce", value: "I want to sell my produce" },
-  { label: "Price update Azadpur", value: "What is the price at Azadpur?" },
+  { label: "हिंदी", value: "हिंदी" },
+  { label: "English", value: "English" },
 ];
 
 function quickReplyIcon(label: string): string {
   const l = label.toLowerCase();
-  if (/price|rupee|₹|rate/.test(l)) return "currency_rupee";
-  if (/truck|load|route|transport/.test(l)) return "local_shipping";
-  if (/join/.test(l)) return "check_circle";
+  if (/price|rupee|₹|rate|कीमत|मंडी/.test(l)) return "currency_rupee";
+  if (/truck|load|route|transport|ट्रक|लोड/.test(l)) return "local_shipping";
+  if (/join|जुड़/.test(l)) return "check_circle";
+  if (/option|विकल्प/.test(l)) return "list";
   return "search";
 }
 
@@ -42,7 +43,10 @@ export default function ChatPage() {
     {
       id: 0,
       role: "bot",
-      text: "Namaste! I'm your Unnati Copilot. Tell me what you want to sell — crop, quantity and where you are — and I'll find your best route.",
+      text:
+        "Namaste! 🙏 I'm *Unnati* — your farming copilot.\n\n" +
+        "आप किस भाषा में बात करना चाहेंगे?\n" +
+        "Which language would you like to chat in?",
       time: nowTime(),
       recommendationId: null,
       joined: false,
@@ -51,6 +55,7 @@ export default function ChatPage() {
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>(DEFAULT_QUICK_REPLIES);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [lang, setLang] = useState<"hi" | "en">("en");
   const nextId = useRef(1);
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -74,6 +79,8 @@ export default function ChatPage() {
     try {
       const turn = await api.chat(sessionId, trimmed);
       const reply: ChatMessageOut = turn.reply;
+      // Track conversation language from the bot's script for the toggle state.
+      if (/[\u0900-\u097F]/.test(reply.text) && lang === "en") setLang("hi");
       setMessages((m) => [
         ...m,
         {
@@ -94,7 +101,10 @@ export default function ChatPage() {
         {
           id: nextId.current++,
           role: "bot",
-          text: "Sorry, I couldn't reach the network just now. Please try again in a moment.",
+          text:
+            lang === "hi"
+              ? "क्षमा करें, नेटवर्क नहीं मिल पाया। कृपया थोड़ी देर में फिर कोशिश करें।"
+              : "Sorry, I couldn't reach the network just now. Please try again in a moment.",
           time: nowTime(),
           recommendationId: null,
           joined: false,
@@ -155,13 +165,32 @@ export default function ChatPage() {
               </span>
             </div>
           </div>
-          <div className="ml-auto flex items-center gap-4 text-on-surface-variant">
-            <span className="material-symbols-outlined text-[20px] cursor-pointer hover:text-primary transition-colors">
-              videocam
-            </span>
-            <span className="material-symbols-outlined text-[20px] cursor-pointer hover:text-primary transition-colors">
-              call
-            </span>
+          <div className="ml-auto flex items-center gap-3 text-on-surface-variant">
+            {/* Language toggle */}
+            <div
+              className="flex items-center rounded-full p-0.5 bg-surface-container-high/80"
+              style={{ boxShadow: "inset 0 0 0 1px rgba(110, 231, 183, 0.15)" }}
+            >
+              {(["hi", "en"] as const).map((code) => (
+                <button
+                  key={code}
+                  onClick={() => {
+                    if (lang !== code && !typing) {
+                      setLang(code);
+                      send(code === "hi" ? "हिंदी" : "English");
+                    }
+                  }}
+                  disabled={typing}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors ${
+                    lang === code
+                      ? "bg-primary/20 text-primary"
+                      : "text-on-surface-variant hover:text-primary"
+                  }`}
+                >
+                  {code === "hi" ? "हिंदी" : "EN"}
+                </button>
+              ))}
+            </div>
             <span className="material-symbols-outlined text-[20px] cursor-pointer hover:text-primary transition-colors">
               more_vert
             </span>
@@ -205,7 +234,7 @@ export default function ChatPage() {
                           <span className="material-symbols-outlined text-[14px]">
                             insights
                           </span>
-                          View full recommendation
+                          {lang === "hi" ? "पूरी सिफ़ारिश देखें" : "View full recommendation"}
                         </Link>
                       )}
                       {msg.joined && (
@@ -213,7 +242,7 @@ export default function ChatPage() {
                           <span className="material-symbols-outlined text-[14px]">
                             task_alt
                           </span>
-                          Pool joined
+                          {lang === "hi" ? "पूल में जुड़ गए" : "Pool joined"}
                         </span>
                       )}
                     </div>
@@ -302,7 +331,7 @@ export default function ChatPage() {
             >
               <input
                 className="bg-transparent border-none outline-none w-full text-on-surface text-sm placeholder-on-surface-variant/50 font-body-md"
-                placeholder="Type a message..."
+                placeholder={lang === "hi" ? "संदेश लिखें..." : "Type a message..."}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
